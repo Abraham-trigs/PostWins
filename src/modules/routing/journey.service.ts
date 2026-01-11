@@ -1,5 +1,5 @@
 // filepath: apps/backend/src/modules/routing/journey.service.ts
-import { Task, Journey, PostWin, ExecutionBody } from "@posta/core";
+import { Task, Journey, PostWin, ExecutionBody, KHALISTAR_ID } from "@posta/core";
 
 export class JourneyService {
   private educationPath: Task[] = [
@@ -22,50 +22,68 @@ export class JourneyService {
     return this.journeys.get(beneficiaryId)!;
   }
 
-  public canAdvance(beneficiaryId: string, taskId: string): { allowed: boolean; reason?: string } {
-    const journey = this.getOrCreateJourney(beneficiaryId);
-    const task = this.educationPath.find(t => t.id === taskId);
-    if (!task) return { allowed: false, reason: "Task not in SDG path" };
+  /**
+   * Section E: Vertical Journey Sequence Validation
+   * Replaces 'canAdvance' to sync with IntakeController.validateTaskSequence
+   */
+  public validateTaskSequence(journey: Journey, taskCode: string): boolean {
+    const task = this.educationPath.find(t => t.id === taskCode);
+    
+    // If task is not in path, it violates SDG governance
+    if (!task) return false;
+
+    // Requirement E.2: Check if all prerequisites are in completedTaskIds
     for (const depId of task.dependencies) {
       if (!journey.completedTaskIds.includes(depId)) {
-        const depTask = this.educationPath.find(t => t.id === depId);
-        return { allowed: false, reason: `Prerequisite "${depTask?.label}" not met.` };
+        return false; // Dependency missing
       }
     }
-    return { allowed: true };
+
+    return true;
   }
 
-  public completeTask(beneficiaryId: string, taskId: string) {
+  /**
+   * Section K: Post-Response Completion
+   */
+  public completeTask(beneficiaryId: string, taskId: string): void {
     const journey = this.getOrCreateJourney(beneficiaryId);
+    
     if (!journey.completedTaskIds.includes(taskId)) {
       journey.completedTaskIds.push(taskId);
-      const nextTask = this.educationPath.find(t => t.order > (this.educationPath.find(p => p.id === taskId)?.order || 0));
-      if (nextTask) journey.currentTaskId = nextTask.id;
+      
+      // Advance currentTaskId to the next logical step in the educationPath
+      const currentTask = this.educationPath.find(t => t.id === taskId);
+      const nextTask = this.educationPath.find(t => t.order === (currentTask?.order || 0) + 1);
+      
+      if (nextTask) {
+        journey.currentTaskId = nextTask.id;
+      }
     }
   }
 
+  /**
+   * Section J: Geographical & Trust-Based Routing
+   */
   public async routePostWin(postWin: PostWin, availableBodies: ExecutionBody[]): Promise<string> {
-    // 1. Author's Choice
+    // 1. Author's Choice (Requirement 2)
     if (postWin.preferredBodyId) {
       const preferred = availableBodies.find(b => b.id === postWin.preferredBodyId);
       if (preferred && this.isBodyCapable(preferred, postWin)) return preferred.id;
     }
 
-    // 2. Filter by SDG Capability (Explicitly cast as string to avoid type mismatches)
+    // 2. Filter by SDG Capability
     const matches = availableBodies.filter(body =>
-      postWin.sdgGoals.every(goal => body.capabilities.includes(goal as any))
+      postWin.sdgGoals.every(goal => body.capabilities.includes(goal))
     );
 
-    // Fallback if no matching capability found
-    if (matches.length === 0) return 'Khalistar_Foundation';
+    if (matches.length === 0) return KHALISTAR_ID;
 
-    // 3. Sort by proximity and find high trust
+    // 3. Section J.3: Proximity & Trust Score (Requirement 0.7 threshold)
     const bestMatch = matches
       .sort((a, b) => this.calculateProximity(a, postWin) - this.calculateProximity(b, postWin))
       .find(body => (body.trustScore || 0) >= 0.7);
 
-    // CRITICAL: Force a string literal fallback to prevent undefined
-    return bestMatch ? bestMatch.id : 'Khalistar_Foundation';
+    return bestMatch ? bestMatch.id : KHALISTAR_ID;
   }
 
   private isBodyCapable(body: ExecutionBody, postWin: PostWin): boolean {
@@ -74,6 +92,7 @@ export class JourneyService {
 
   private calculateProximity(body: ExecutionBody, postWin: PostWin): number {
     if (!postWin.location) return Infinity;
+    // Euclidean distance for coordinate-based routing
     return Math.sqrt(
       Math.pow(body.location.lat - postWin.location.lat, 2) +
       Math.pow(body.location.lng - postWin.location.lng, 2)

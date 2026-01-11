@@ -1,3 +1,3 @@
 // packages/core/src/index.ts
-export * from './types';
-export * from './constants';
+export * from '../src/types';
+export * from '../src/constants';

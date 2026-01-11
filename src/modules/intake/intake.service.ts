@@ -2,6 +2,14 @@ import { PostWin, PostaContext } from "@posta/core";
 import { IntegrityService } from "./integrity.service";
 import { TaskService } from "../routing/task.service";
 
+/**
+ * Interface to extend PostaContext with literacy metadata for ToneAdapter
+ */
+export interface EnrichedContext extends PostaContext {
+  literacyLevel: 'LOW' | 'STANDARD';
+  intent: string;
+}
+
 export class IntakeService {
   constructor(
     private integrityService: IntegrityService,
@@ -9,15 +17,55 @@ export class IntakeService {
   ) {}
 
   /**
-   * Section A & B: High-level orchestrator
+   * Section A & N: Implicit Context & Literacy Detection
+   * Analyzes the message to determine role and literacy level (Requirement G.2)
    */
-  async handleIntake(message: string, deviceId: string): Promise<Partial<PostWin>> {
+  public async detectContext(message: string): Promise<EnrichedContext> {
+    const msg = message.toLowerCase();
+    
+    // 1. Role Detection (Requirement A.1)
+    let role: PostaContext['role'] = 'BENEFICIARY'; // Default for intake
+    if (msg.includes('partner') || msg.includes('organization') || msg.includes('ngo')) {
+      role = 'NGO_PARTNER';
+    }
+
+    // 2. Literacy Scoring (Requirement G.2)
+    // Simple heuristic: length and word complexity
+    const words = message.trim().split(/\s+/);
+    const avgWordLength = message.length / (words.length || 1);
+    
+    // If message is very short or words are extremely simple, flag as LOW literacy
+    const literacyLevel = (words.length < 6 || avgWordLength < 4) ? 'LOW' : 'STANDARD';
+
+    return {
+      role,
+      isImplicit: true,
+      literacyLevel,
+      intent: 'CLAIM_SUBMISSION'
+    };
+  }
+
+  /**
+   * Section B: Helper for text normalization
+   */
+  public sanitizeDescription(message: string): string {
+    // Ensures neutral/respectful formatting by removing excess whitespace and newlines
+    return message.trim().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Section A: Internal logic for complex intake validation
+   * (Used if the controller needs more than just basic context)
+   */
+  async processInternalOrchestration(message: string, deviceId: string): Promise<Partial<PostWin>> {
     const context = await this.detectContext(message);
-    const tempPostWin = { beneficiaryId: 'pending_detection' } as PostWin;
+    
+    // Minimal temporary object for integrity check
+    const tempPostWin = { beneficiaryId: 'pending' } as PostWin;
     const flags = await this.integrityService.performFullAudit(tempPostWin, message, deviceId);
     
     if (flags.some(f => f.severity === 'HIGH')) {
-       throw new Error("Intake blocked by Integrity Guardrails");
+       throw new Error("Intake blocked by Integrity Guardrails: High severity anomaly detected.");
     }
 
     return {
@@ -26,26 +74,5 @@ export class IntakeService {
       mode: 'AI_AUGMENTED',
       routingStatus: 'UNASSIGNED'
     };
-  }
-
-  /**
-   * Section A: Publicly accessible for the Controller to use directly
-   */
-  public async detectContext(message: string): Promise<PostaContext> {
-    const msg = message.toLowerCase();
-    let role: PostaContext['role'] = 'AUTHOR';
-    if (msg.includes('student') || msg.includes('organization')) role = 'NGO_PARTNER';
-
-    return {
-      role,
-      isImplicit: true
-    };
-  }
-
-  /**
-   * Section G: Adapts tone and cleans whitespace
-   */
-  public sanitizeDescription(message: string): string {
-    return message.trim().replace(/\s+/g, ' ');
   }
 }

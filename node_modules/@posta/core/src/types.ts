@@ -49,10 +49,12 @@ export interface AuditRecord {
   timestamp: number;
   postWinId: string;
   action: 'INTAKE' | 'VERIFIED' | 'ROUTED' | 'FLAGGED' | 'EXECUTED';
-  actorId: string; // Hash of the verifier or "SYSTEM"
+  actorId: string; 
   previousState: string;
   newState: string;
-  commitmentHash: string; // SHA-256 hash for Section L.2
+  commitmentHash: string; 
+  signature: string;
+
 }
 
 export interface LedgerCommitment {
