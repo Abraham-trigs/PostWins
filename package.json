@@ -1,6 +1,7 @@
 {
   "name": "@posta/backend",
   "version": "1.0.0",
+  "build": "tsc",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -15,6 +16,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  
   "packageManager": "pnpm@10.18.2",
   "dependencies": {
     "@posta/core": "workspace:*",
