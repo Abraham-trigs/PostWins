@@ -32,3 +32,5 @@ const router = new PostWinRoutingService(tasks, journey, ledger);   const intake
 app.listen(PORT, () => {
   console.log(`🚀 Posta Backend running on http://localhost:${PORT} in ${process.env.MODE || 'production'} mode`);
 });
+
+export default app;

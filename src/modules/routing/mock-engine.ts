@@ -80,9 +80,19 @@ export class PostaMockEngine {
       "SDG_4"
     );
 
-    // STEP 5: Results
+console.log("\n" + "=".repeat(50));
     console.log("✅ Simulation Complete.");
-    console.log("Final Verification Status:", finalState.verificationStatus);
-    console.log("Audit Trail Entries:", finalState.auditTrail.length);
-  }
-}
+    console.log(`Final Status: ${finalState.verificationStatus}`);
+    console.log(`Total Audit Trail Entries: ${finalState.auditTrail.length}`);
+    console.log("=".repeat(50));
+    
+    console.log("\n📜 FULL AUDIT TRAIL:");
+    finalState.auditTrail.forEach((entry, idx) => {
+      // Use .toString() if timestamp is a number, or just the string if ISO
+      const ts = typeof entry.timestamp === 'number' ? new Date(entry.timestamp).toISOString() : entry.timestamp;
+      console.log(`[${idx + 1}] ${ts} | ${entry.action.padEnd(22)} | Actor: ${entry.actor}`);
+      if (entry.note) console.log(`    Note: ${entry.note}`);
+    });
+    console.log("=".repeat(50) + "\n");
+  } // End of runSimulation
+} // End of class
