@@ -17,6 +17,8 @@ import { JourneyService } from '../routing/journey.service';
 import { LedgerService } from './ledger.service';
 import { TaskService } from '../routing/task.service';
 import { ToneAdapterService } from './tone-adapter.service';
+import { LocalizationService } from './localization.service';
+import { SDGMapperService } from './sdg-mapper.service'; // Added
 
 // 1. Initialize Shared Infrastructure
 const ledgerService = new LedgerService();
@@ -24,6 +26,8 @@ const integrityService = new IntegrityService();
 const taskService = new TaskService();
 const journeyService = new JourneyService();
 const toneAdapter = new ToneAdapterService();
+const localizationService = new LocalizationService();
+const sdgMapper = new SDGMapperService(); // Added
 
 // 2. Initialize Services with Dependencies
 const intakeService = new IntakeService(integrityService, taskService);
@@ -32,7 +36,7 @@ const verificationService = new VerificationService(ledgerService);
 /**
  * Handles the intake of new messages from beneficiaries.
  * Enforces multi-layered integrity checks (Section F/M), journey validation (Section E),
- * and provides tone-adapted feedback (Section G).
+ * cultural localization (Section N), and SDG goal mapping.
  */
 export const handleIntake = async (req: Request, res: Response) => {
   try {
@@ -43,33 +47,29 @@ export const handleIntake = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "No message provided" });
     }
 
-    // Prepare a minimal skeleton for integrity processing
-    const postWinSkeleton = { beneficiaryId } as PostWin;
-
     // --- SECTION F & M: INTEGRITY AUDIT ---
+    const postWinSkeleton = { beneficiaryId } as PostWin;
     const integrityFlags = await integrityService.performFullAudit(postWinSkeleton, message, deviceId);
     
-    // 1. Requirement M.5: Handle Permanent Blacklist (403)
+    // 1. Handle Permanent Blacklist (403)
     const isBlacklisted = deviceId && integrityFlags.some(f => f.type === 'IDENTITY_MISMATCH' && f.severity === 'HIGH');
     if (isBlacklisted) {
       return res.status(403).json({
         status: "banned",
-        error: "Access denied: Permanent flag for repeated violations.",
-        governance: "Section M.5 enforced."
+        error: "Access denied: Permanent flag for repeated violations."
       });
     }
 
-    // 2. Requirement M.4: Handle Rate Limiting / Cooldown (429)
+    // 2. Handle Rate Limiting / Cooldown (429)
     const cooldownFlag = integrityFlags.find(f => f.type === 'SUSPICIOUS_TONE' && f.severity === 'LOW');
     if (cooldownFlag) {
       return res.status(429).json({
         status: "throttled",
-        error: "Too many requests. Please wait 30 seconds.",
-        retryAfter: "30s"
+        error: "Too many requests. Please wait 30 seconds."
       });
     }
 
-    // 3. Section M.1 & M.2: Handle Fraud/Integrity Violations (409)
+    // 3. Handle Fraud/Integrity Violations (409)
     if (integrityFlags.some(f => f.severity === 'HIGH')) {
       return res.status(409).json({
         status: "flagged",
@@ -80,17 +80,23 @@ export const handleIntake = async (req: Request, res: Response) => {
 
     // --- SECTION E: JOURNEY VALIDATION ---
     const journey: Journey = journeyService.getOrCreateJourney(beneficiaryId);
-    // Synced with JourneyService.validateTaskSequence
     if (!journeyService.validateTaskSequence(journey, taskCode)) {
       return res.status(403).json({
         status: "blocked",
-        governance: "Constitution enforced: Sequential integrity required.",
         note: `Prerequisites for ${taskCode} not met.`
       });
     }
 
+    // --- SECTION N: LOCALIZATION & NEUTRALIZATION ---
+    const localization = await localizationService.detectCulture(message);
+    const neutralizedDescription = await localizationService.neutralizeAndTranslate(message, localization);
+
     // --- SECTION A, N & G.2: CONTEXT & LITERACY ---
     const detectedContext = await intakeService.detectContext(message);
+
+    // --- SDG MAPPING ---
+    // Automatically detects if the claim relates to Education (SDG_4) or Gender Equality (SDG_5)
+    const assignedGoals = sdgMapper.mapMessageToGoals(message);
 
     // Initialize PostWin entity (Compliant with @posta/core)
     const postWin: PostWin = {
@@ -100,15 +106,15 @@ export const handleIntake = async (req: Request, res: Response) => {
       verificationStatus: integrityFlags.length > 0 ? 'FLAGGED' : 'PENDING',
       beneficiaryId,
       authorId: beneficiaryId,
-      description: intakeService.sanitizeDescription(message),
-      sdgGoals: ['SDG_4'], 
+      description: neutralizedDescription,
+      sdgGoals: assignedGoals, // Dynamically mapped
       mode: 'AI_AUGMENTED',
       verificationRecords: [],
-      auditTrail: []
+      auditTrail: [],
+      localization
     };
 
     // --- SECTION L: IMMUTABLE AUDIT ---
-    // Hashing (L.2) and RSA signing (L.3) handled internally by LedgerService
     const auditRecord: AuditRecord = await ledgerService.commit({
       timestamp: Date.now(),
       postWinId: postWin.id,
@@ -126,20 +132,17 @@ export const handleIntake = async (req: Request, res: Response) => {
       status: "success",
       message: outcomeMessage, 
       transactionId,
-      context: detectedContext,
+      context: { ...detectedContext, localization },
       audit: auditRecord,
       postWin,
       journeyState: journey
     });
 
     // --- SECTION K: COMPLETION ---
-    // Optimized: journey object is already in memory, no need for second lookup
     journeyService.completeTask(beneficiaryId, taskCode);
 
   } catch (err: any) {
     console.error("Intake Controller Error:", err);
-    res.status(500).json({ 
-      error: "Posta System Error: Escalated to Human-in-the-loop (HITL)." 
-    });
+    res.status(500).json({ error: "Posta System Error: Escalated to Human-in-the-loop (HITL)." });
   }
 };
