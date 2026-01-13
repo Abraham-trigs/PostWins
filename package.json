@@ -1,26 +1,36 @@
 {
+<<<<<<< HEAD
   "name": "posta",
+=======
+  "name": "@posta/backend",
+>>>>>>> business
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev:backend": "pnpm --filter backend dev",
-    "build": "echo 'Building monorepo...'",
-    "build:core": "pnpm --filter @posta/core build",
-    "posta:mock": "pnpm --filter @posta/backend run start:mock"
+    "dev": "nodemon --watch src/**/*.ts --exec ../../node_modules/.bin/ts-node src/server.ts",
+    "start:mock": "cross-env MODE=MOCK ts-node-dev --respawn src/server.ts",
+    "start": "ts-node src/server.ts"
   },
+
+  
   "keywords": [],
   "author": "",
   "license": "ISC",
+  
   "packageManager": "pnpm@10.18.2",
+  "dependencies": {
+    "@posta/core": "workspace:*",
+    "express": "^5.2.1"
+  },
   "devDependencies": {
-    "@changesets/cli": "^2.29.8",
-    "@types/express": "^5.0.6",
-    "@types/node": "^25.0.5",
-    "nodemon": "^3.1.11",
-    "pnpm": "^10.28.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "cross-env": "^10.1.0",
+    "ts-node-dev": "^2.0.0",
+     "typescript": "^5.0.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.0.0"
   }
 }
