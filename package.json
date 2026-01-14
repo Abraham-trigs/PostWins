@@ -1,9 +1,5 @@
 {
-<<<<<<< HEAD
-  "name": "posta",
-=======
-  "name": "@posta/backend",
->>>>>>> business
+  "name": "@posta/root",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
