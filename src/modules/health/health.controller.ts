@@ -2,8 +2,6 @@
 import { Router } from "express";
 import { LedgerService } from "../intake/ledger.service";
 
-
-
 const router = Router();
 const ledgerService = new LedgerService();
 

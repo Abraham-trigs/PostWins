@@ -1,16 +1,17 @@
 {
   "compilerOptions": {
+    "types": ["node"],
     "target": "ESNext",
-    "module": "CommonJS",
-    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "lib": ["ES2022"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "baseUrl": ".",
     "paths": {
-      "@posta/core": ["packages/core/src/index.ts"]
+      "@posta/core": ["../../packages/core/src/index.ts"]
     },
     "declaration": true,
     "declarationMap": true
