@@ -7,3 +7,5 @@ build
 EOF
 .vercel
 .env*.local
+
+.Read.md

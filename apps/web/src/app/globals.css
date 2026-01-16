@@ -1,0 +1,31 @@
+/* Default (Light) theme variables */
+:root {
+  --bg-primary: #bfcdef;
+  --text-color: #000000;
+  --text-secondary: #778db7; /* New light theme secondary text color */
+  --accent-color: #ff0000;
+}
+
+/* Dark theme variables, applied when user system preference is dark */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #000000;
+    --text-color: #bfcdef;
+    --text-secondary: #778db7; /* New dark theme secondary text color */
+    --accent-color: #ff0000;
+  }
+}
+
+/* Global styles consuming the variables */
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-color);
+  font-family: sans-serif;
+}
+
+p {
+  /* Default paragraphs use the secondary color for a softer look */
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
