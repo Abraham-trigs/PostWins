@@ -1,157 +1,77 @@
-/* Default (Light) theme variables */
-@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --bg-primary: #bfcdef; /* Main background color */
-  --text-color: #000000; /* Main text color */
-  --text-secondary: #778db7; /* Secondary text color (e.g., timestamps, softer text) */
-  --accent-color: #ff0000; /* Accent color (e.g., buttons, active indicators) */
-  --card-bg: #ffffff; /* Card/panel background in light theme */
-  --border-color: #e0e0e0; /* Subtle border color */
+  --font-sans: var(--font-lexend);
+
+  /* ================================
+     TEXT
+     ================================ */
+  --color-text-primary: #030D23;      /* was --color-ink */
+  --color-text-secondary: #1C376E;    /* was --color-deep */
+  --color-text-inverse: #FAF7F0;      /* for dark surfaces */
+
+  /* ================================
+     BACKGROUNDS / SURFACES
+     ================================ */
+  --color-bg-primary: #FAF7F0;        /* was --color-paper */
+  --color-bg-secondary: #E8EDFF;      /* was --color-mist */
+  --color-bg-surface: #0B1633;        /* was --color-navy */
+  --color-bg-elevated: #ffffff;       /* optional elevation */
+
+  /* ================================
+     BRAND / ACCENT
+     ================================ */
+  --color-brand-primary: #2B4E9B;     /* was --color-ocean */
+  --color-brand-accent: #1FB3B8;      /* was --color-teal */
+  --color-brand-danger: #E11D2E;      /* was --color-red */
+
+  /* ================================
+     STRUCTURE
+     ================================ */
+  --color-border-subtle: rgba(3, 16, 43, 0.1); /* was --color-line */
+
+  color-scheme: light;
 }
 
-/* Dark theme variables, applied when user system preference is dark */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #000000; /* Main background color in dark theme */
-    --text-color: #bfcdef; /* Main text color in dark theme */
-    --text-secondary: #778db7; /* Secondary text color in dark theme */
-    --accent-color: #ff0000; /* Accent color (remains the same) */
-    --card-bg: #1a1a1a; /* Card/panel background in dark theme */
-    --border-color: #333333; /* Subtle border color in dark theme */
-  }
+.dark {
+  /* ================================
+     TEXT
+     ================================ */
+  --color-text-primary: #FAF7F0;
+  --color-text-secondary: #E8EDFF;
+  --color-text-inverse: #030D23;
+
+  /* ================================
+     BACKGROUNDS / SURFACES
+     ================================ */
+  --color-bg-primary: #030D23;
+  --color-bg-secondary: #0B1633;
+  --color-bg-surface: #020816;
+  --color-bg-elevated: #0B1633;
+
+  /* ================================
+     BRAND / ACCENT
+     ================================ */
+  --color-brand-primary: #2B4E9B;
+  --color-brand-accent: #1FB3B8;
+  --color-brand-danger: #E11D2E;
+
+  /* ================================
+     STRUCTURE
+     ================================ */
+  --color-border-subtle: rgba(242, 245, 255, 0.12);
+
+  color-scheme: dark;
 }
 
-/* Global styles consuming the variables */
+html,
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-color);
-  font-family: 'Lexend', sans-serif;
-  margin: 0;
-  padding: 0;
-  line-height: 1.4;
-  /* Assumes a main container wraps the whole UI */
-  display: flex;
-  height: 100vh;
-  overflow: hidden; /* Prevent scrolling on the body, panels will scroll */
+  height: 100%;
 }
 
-p {
-  color: var(--text-secondary); /* Default paragraphs use the secondary color for a softer look */
-}
-
-/* Layout containers (assuming a 3-panel layout) */
-.app-container {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    background-color: var(--bg-primary);
-}
-
-.sidebar-left, .sidebar-right, .main-chat {
-    background-color: var(--card-bg);
-    padding: 20px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    overflow-y: auto; /* Allow scrolling within panels */
-    height: 100%;
-    box-sizing: border-box;
-}
-
-.sidebar-left {
-    flex: 0 0 300px; /* Fixed width sidebar on large screens */
-    border-right: 1px solid var(--border-color);
-}
-
-.main-chat {
-    flex: 1; /* Main content takes up remaining space */
-    display: flex;
-    flex-direction: column;
-    background-color: var(--bg-primary); /* Chat background uses primary body bg for contrast */
-}
-
-.sidebar-right {
-    flex: 0 0 300px; /* Fixed width detail sidebar */
-    border-left: 1px solid var(--border-color);
-}
-
-/* Responsiveness adjustments */
-@media (max-width: 1024px) {
-    .sidebar-right {
-        display: none; /* Hide the right sidebar on tablets/smaller screens */
-    }
-}
-
-@media (max-width: 768px) {
-    .sidebar-left {
-        flex: 0 0 80px; /* Collapse left sidebar into icons on mobile */
-        padding: 10px;
-    }
-    /* Main chat would typically take the full width here */
-}
-
-/* UI Elements: Cards and Lists */
-.card {
-    background-color: var(--card-bg);
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.chat-list-item {
-    display: flex;
-    align-items: center;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 5px;
-    transition: background-color 0.2s;
-}
-
-.chat-list-item:hover, .chat-list-item.active {
-    background-color: var(--bg-primary); /* Use primary bg color for active state background */
-}
-
-.avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    margin-right: 15px;
-    object-fit: cover;
-}
-
-/* Chat Messages */
-.message-bubble {
-    padding: 10px 15px;
-    border-radius: 18px;
-    margin-bottom: 10px;
-    max-width: 70%;
-    word-wrap: break-word;
-}
-
-.message-received {
-    background-color: var(--card-bg); /* Use card bg for received messages */
-    color: var(--text-color);
-    align-self: flex-start;
-}
-
-.message-sent {
-    background-color: var(--text-secondary); /* Use secondary color for sent messages (looks blue in image) */
-    color: #fff;
-    align-self: flex-end;
-}
-
-/* Utility classes for sleek design */
-.text-muted {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-}
-
-.btn-primary {
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: bold;
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
