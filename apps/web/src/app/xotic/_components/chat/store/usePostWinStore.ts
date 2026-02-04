@@ -28,8 +28,9 @@ function evidenceId(kind: EvidenceKind, file: File) {
 
 function makeTxId(prefix: string) {
   // stable enough for UI; API layer can also generate, but we keep txId here for retries
+  // @ts-expect-error crypto.randomUUID exists in browser
+
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    // @ts-expect-error crypto.randomUUID exists in browser
     return `${prefix}_${crypto.randomUUID()}`;
   }
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;

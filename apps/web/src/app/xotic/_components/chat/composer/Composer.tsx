@@ -18,7 +18,9 @@ import {
 
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
-import { bootstrapIntake } from "../../api/intake";
+
+// ✅ API
+import { bootstrapIntake, deliveryIntake } from "../../api/intake";
 
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {
@@ -37,6 +39,7 @@ export function Composer() {
   const text = usePostWinStore((s) => s.composerText);
   const evidence = usePostWinStore((s) => s.draft.evidence ?? []);
   const submitting = usePostWinStore((s) => s.submitting);
+  const ids = usePostWinStore((s) => s.ids);
 
   const setComposerMode = usePostWinStore((s) => s.setComposerMode);
   const setComposerText = usePostWinStore((s) => s.setComposerText);
@@ -50,6 +53,9 @@ export function Composer() {
   const patchDraft = usePostWinStore((s) => s.patchDraft);
 
   const submitBootstrap = usePostWinStore((s) => s.submitBootstrap);
+
+  // ✅ Delivery submit (added in the updated store file)
+  const submitDelivery = usePostWinStore((s) => (s as any).submitDelivery);
 
   const {
     attachOpen,
@@ -84,7 +90,7 @@ export function Composer() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
 
     const trimmed = text.trim();
@@ -92,12 +98,46 @@ export function Composer() {
     // Always audit the user's text into the timeline
     if (trimmed.length > 0) appendText("user", trimmed, mode);
 
-    // RECORD is special: it should bootstrap backend project/postWin
+    // RECORD: bootstrap backend case/postWin
     if (mode === "record" && trimmed.length > 0) {
       patchDraft({ narrative: trimmed });
 
-      // Call backend bootstrap (idempotent) using the store orchestration
-      submitBootstrap({ submit: bootstrapIntake });
+      await submitBootstrap({ submit: bootstrapIntake });
+
+      clearComposer();
+      return;
+    }
+
+    // DELIVERY: record a delivery against the existing projectId (caseId)
+    if (mode === "delivery" && trimmed.length > 0) {
+      if (!ids.projectId) {
+        appendEvent({
+          title: "Delivery blocked",
+          meta: "Missing projectId. Run Record (bootstrap) first.",
+          status: "failed",
+        });
+        clearComposer();
+        return;
+      }
+
+      const deliveryId = `delivery-${Date.now()}`;
+      const occurredAt = new Date().toISOString();
+
+      // Minimal wiring payload: you can replace items/location with a proper form later.
+      const payload = {
+        projectId: ids.projectId,
+        deliveryId,
+        occurredAt,
+        location: "Unknown", // replace with real UI later
+        items: [{ name: "Delivery", qty: 1 }],
+        notes: trimmed,
+      };
+
+      // store submitDelivery keeps transactionId stable across retries
+      await submitDelivery({
+        submit: (p: any, ctx: { transactionId: string }) =>
+          deliveryIntake(p, { transactionId: ctx.transactionId }),
+      });
 
       clearComposer();
       return;

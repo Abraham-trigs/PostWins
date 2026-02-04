@@ -6,10 +6,10 @@ import { Activity } from "lucide-react";
 import type { ChatMessage, ComposerMode } from "./store/types";
 
 export function MessagesSurface({
-  messages,
+  messages = [],
   onAction,
 }: {
-  messages: ChatMessage[];
+  messages?: ChatMessage[];
   onAction?: (action: { id: string; label: string; value: string }) => void;
 }) {
   return (
@@ -121,8 +121,8 @@ function EventCard({
         {status === "logged"
           ? "Logged"
           : status === "pending"
-          ? "Pending"
-          : "Failed"}
+            ? "Pending"
+            : "Failed"}
       </div>
     </div>
   );
