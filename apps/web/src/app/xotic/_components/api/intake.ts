@@ -9,6 +9,13 @@ export type BootstrapResponse = {
   postWinId?: string | null;
 };
 
+export type DeliveryResponse = {
+  ok: true;
+  type: "DELIVERY_RECORDED";
+  projectId: string;
+  deliveryId: string;
+};
+
 type BootstrapPayload = {
   narrative: string;
   beneficiaryId?: string;
@@ -18,19 +25,23 @@ type BootstrapPayload = {
   sdgGoals?: string[];
 };
 
+export type DeliveryPayload = {
+  projectId: string;
+  deliveryId: string;
+  occurredAt: string; // ISO string
+  location: unknown;
+  items: Array<{ name: string; qty: number }>;
+  notes?: string;
+};
+
 function makeTransactionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
   return `tx_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
-// NOTE: Dev-only tenant selection. In production, tenantId must come from auth/session.w
-/**
- * Dev tenant resolution:
- * 1) NEXT_PUBLIC_TENANT_ID
- * 2) localStorage posta.tenantId
- *
- */
+
+// NOTE: Dev-only tenant selection. In production, tenantId must come from auth/session.
 function getTenantId(): string {
   const envTenant =
     typeof process !== "undefined"
@@ -58,29 +69,50 @@ function draftToBootstrapPayload(draft: PostWinDraft): BootstrapPayload {
   };
 }
 
-export async function bootstrapIntake(
-  draft: PostWinDraft,
-): Promise<BootstrapResponse> {
+async function postaPost<T>(
+  path: string,
+  body: unknown,
+  opts?: { transactionId?: string },
+): Promise<T> {
   const tenantId = getTenantId();
+  const transactionId = opts?.transactionId ?? makeTransactionId();
 
-  const res = await fetch("/api/intake/bootstrap", {
+  const res = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Tenant-Id": tenantId,
-      "x-transaction-id": makeTransactionId(),
+      "x-transaction-id": transactionId,
       "X-Source": "web",
       // later when auth exists:
       // "X-Actor-Id": userId,
     },
-    body: JSON.stringify(draftToBootstrapPayload(draft)),
+    body: JSON.stringify(body),
   });
 
   const data = (await res.json()) as any;
 
   if (!res.ok) {
-    throw new Error(data?.error || "Bootstrap failed");
+    throw new Error(data?.error || "Request failed");
   }
 
-  return data as BootstrapResponse;
+  return data as T;
+}
+
+export async function bootstrapIntake(
+  draft: PostWinDraft,
+  opts?: { transactionId?: string },
+): Promise<BootstrapResponse> {
+  return postaPost<BootstrapResponse>(
+    "/api/intake/bootstrap",
+    draftToBootstrapPayload(draft),
+    opts,
+  );
+}
+
+export async function deliveryIntake(
+  payload: DeliveryPayload,
+  opts?: { transactionId?: string },
+): Promise<DeliveryResponse> {
+  return postaPost<DeliveryResponse>("/api/intake/delivery", payload, opts);
 }
