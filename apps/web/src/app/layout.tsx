@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Lexend } from "next/font/google";
-import "./globals.css";
+import { XoticDensityRoot } from "./xotic/_components/layout/XoticDensityRoot";
+
+import "./styles/globals.css";
 
 const lexend = Lexend({
   subsets: ["latin"],
@@ -10,7 +12,7 @@ const lexend = Lexend({
 });
 
 export const metadata: Metadata = {
-  title: "Xotic Interface",
+  title: "PostWins - Empowering Social Impact through Seamless Connections",
   description:
     "Xotic, Connecting Donors and NGOs to ensure social impact is a byproduct of Progress",
 };
@@ -23,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={lexend.variable} suppressHydrationWarning>
       <body className="font-sans antialiased min-h-dvh overflow-x-hidden">
-        {children}
+        <XoticDensityRoot>{children}</XoticDensityRoot>;
       </body>
     </html>
   );

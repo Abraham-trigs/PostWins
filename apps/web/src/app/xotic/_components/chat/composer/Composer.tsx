@@ -18,7 +18,7 @@ import {
 
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
-import { bootstrapIntake } from "../../api/intalke";
+import { bootstrapIntake } from "../../api/intake";
 
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {

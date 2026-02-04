@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MobileSearch } from "../mobile/MobileSearch";
 import { MobileTabs } from "../mobile/MobileTabs";
 import { MobileChatHeader } from "../mobile/MobileChatHeader";
-import { MobileComposer } from "../mobile/MobileComposer";
+import { Composer } from "../chat/composer/Composer";
 import { TabletChatRow } from "../tablet/TabletChatRow";
 import { ChatEmptyState } from "../chat/ChatEmptyState";
 import { MessagesSurface } from "../chat/MessagesSurface";
@@ -14,7 +14,7 @@ import { DetailsFullScreenOverlay } from "../details/DetailsFullScreenOverlay";
 export function TabletSplit() {
   const chats = useMemo(
     () => Array.from({ length: 16 }, (_, i) => ({ id: i + 1 })),
-    []
+    [],
   );
 
   // start with nothing selected → empty state
@@ -103,7 +103,7 @@ export function TabletSplit() {
 
               {/* sticky composer */}
               <div className="sticky bottom-0 z-10 bg-background">
-                <MobileComposer />
+                <Composer />
               </div>
             </>
           )}
