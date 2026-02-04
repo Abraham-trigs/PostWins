@@ -1,4 +1,4 @@
-// app/components/chat/store/usePostWinStore.ts
+// apps/web/src/app/xotic/_components/chat/store/usePostWinStore.ts
 "use client";
 
 import { create } from "zustand";
@@ -26,6 +26,15 @@ function evidenceId(kind: EvidenceKind, file: File) {
   return `${kind}:${file.name}:${file.size}:${file.lastModified}`;
 }
 
+function makeTxId(prefix: string) {
+  // stable enough for UI; API layer can also generate, but we keep txId here for retries
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    // @ts-expect-error crypto.randomUUID exists in browser
+    return `${prefix}_${crypto.randomUUID()}`;
+  }
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+
 const initialDraft: PostWinDraft = {
   narrative: "",
   evidence: [],
@@ -33,6 +42,22 @@ const initialDraft: PostWinDraft = {
 };
 
 const initialStep: IntakeStep = "postwin_narrative";
+
+type DeliveryDraft = {
+  deliveryId: string;
+  occurredAt: string; // ISO
+  location: unknown;
+  items: Array<{ name: string; qty: number }>;
+  notes?: string;
+};
+
+const initialDeliveryDraft: DeliveryDraft = {
+  deliveryId: "delivery-1",
+  occurredAt: new Date().toISOString(),
+  location: "",
+  items: [],
+  notes: "",
+};
 
 type State = {
   ids: PostWinIds;
@@ -45,6 +70,10 @@ type State = {
 
   submitting: boolean;
   error?: string;
+
+  // NEW: Delivery state
+  deliveryDraft: DeliveryDraft;
+  deliveryTxId: string | null;
 
   // Lifecycle
   bootstrapPostWin: () => void;
@@ -63,12 +92,18 @@ type State = {
   // Flow actions
   goToStep: (step: IntakeStep) => void;
   pushFormBlock: (step: IntakeStep) => string;
-  pushActionRow: (actions: Array<{ id: string; label: string; value: string }>) => string;
+  pushActionRow: (
+    actions: Array<{ id: string; label: string; value: string }>,
+  ) => string;
 
   // Draft actions
   patchDraft: (patch: Partial<PostWinDraft>) => void;
   addEvidence: (kind: EvidenceKind, files: File[]) => void;
   removeEvidence: (evidenceId: string) => void;
+
+  // Delivery draft actions
+  patchDeliveryDraft: (patch: Partial<DeliveryDraft>) => void;
+  resetDeliveryDraft: () => void;
 
   // Composer actions
   setComposerMode: (mode: ComposerMode) => void;
@@ -76,7 +111,29 @@ type State = {
   clearComposer: () => void;
 
   submitBootstrap: (opts: {
-    submit: (draft: PostWinDraft) => Promise<{ projectId: string; postWinId?: string | null }>;
+    submit: (
+      draft: PostWinDraft,
+    ) => Promise<{ projectId: string; postWinId?: string | null }>;
+  }) => Promise<void>;
+
+  // NEW: Delivery submit
+  submitDelivery: (opts: {
+    submit: (
+      payload: {
+        projectId: string;
+        deliveryId: string;
+        occurredAt: string;
+        location: unknown;
+        items: Array<{ name: string; qty: number }>;
+        notes?: string;
+      },
+      ctx: { transactionId: string },
+    ) => Promise<{
+      ok: true;
+      type: "DELIVERY_RECORDED";
+      projectId: string;
+      deliveryId: string;
+    }>;
   }) => Promise<void>;
 };
 
@@ -95,6 +152,10 @@ export const usePostWinStore = create<State>()(
       submitting: false,
       error: undefined,
 
+      // NEW
+      deliveryDraft: initialDeliveryDraft,
+      deliveryTxId: null,
+
       // ✅ Clear + seed flow
       bootstrapPostWin: () => {
         set(
@@ -107,9 +168,12 @@ export const usePostWinStore = create<State>()(
             composerText: "",
             submitting: false,
             error: undefined,
+
+            deliveryDraft: initialDeliveryDraft,
+            deliveryTxId: null,
           },
           false,
-          "bootstrapPostWin"
+          "bootstrapPostWin",
         );
 
         set(
@@ -132,7 +196,7 @@ export const usePostWinStore = create<State>()(
             ],
           },
           false,
-          "bootstrapPostWin:seed"
+          "bootstrapPostWin:seed",
         );
       },
 
@@ -151,9 +215,12 @@ export const usePostWinStore = create<State>()(
             composerText: "",
             submitting: false,
             error: undefined,
+
+            deliveryDraft: initialDeliveryDraft,
+            deliveryTxId: null,
           },
           false,
-          "resetPostWin"
+          "resetPostWin",
         ),
 
       appendText: (role, text, mode) => {
@@ -177,7 +244,7 @@ export const usePostWinStore = create<State>()(
             composerText: role === "user" ? "" : get().composerText,
           },
           false,
-          "appendText"
+          "appendText",
         );
 
         return id;
@@ -193,7 +260,7 @@ export const usePostWinStore = create<State>()(
             ],
           },
           false,
-          "appendEvent"
+          "appendEvent",
         );
         return id;
       },
@@ -202,11 +269,11 @@ export const usePostWinStore = create<State>()(
         set(
           {
             messages: get().messages.map((m) =>
-              m.kind === "event" && m.id === id ? { ...m, status } : m
+              m.kind === "event" && m.id === id ? { ...m, status } : m,
             ),
           },
           false,
-          "setEventStatus"
+          "setEventStatus",
         ),
 
       goToStep: (step) => set({ currentStep: step }, false, "goToStep"),
@@ -215,11 +282,14 @@ export const usePostWinStore = create<State>()(
         const id = uid("m");
         set(
           {
-            messages: [...get().messages, { id, kind: "form_block", step, createdAt: nowIso() }],
+            messages: [
+              ...get().messages,
+              { id, kind: "form_block", step, createdAt: nowIso() },
+            ],
             currentStep: step,
           },
           false,
-          "pushFormBlock"
+          "pushFormBlock",
         );
         return id;
       },
@@ -228,10 +298,13 @@ export const usePostWinStore = create<State>()(
         const id = uid("m");
         set(
           {
-            messages: [...get().messages, { id, kind: "action_row", actions, createdAt: nowIso() }],
+            messages: [
+              ...get().messages,
+              { id, kind: "action_row", actions, createdAt: nowIso() },
+            ],
           },
           false,
-          "pushActionRow"
+          "pushActionRow",
         );
         return id;
       },
@@ -259,7 +332,7 @@ export const usePostWinStore = create<State>()(
             },
           },
           false,
-          "addEvidence"
+          "addEvidence",
         );
       },
 
@@ -275,19 +348,41 @@ export const usePostWinStore = create<State>()(
             },
           },
           false,
-          "removeEvidence"
+          "removeEvidence",
         );
       },
 
-      setComposerMode: (mode) => set({ composerMode: mode }, false, "setComposerMode"),
-      setComposerText: (text) => set({ composerText: text }, false, "setComposerText"),
+      // NEW: delivery draft patchers
+      patchDeliveryDraft: (patch) =>
+        set(
+          { deliveryDraft: { ...get().deliveryDraft, ...patch } },
+          false,
+          "patchDeliveryDraft",
+        ),
+
+      resetDeliveryDraft: () =>
+        set(
+          { deliveryDraft: initialDeliveryDraft, deliveryTxId: null },
+          false,
+          "resetDeliveryDraft",
+        ),
+
+      setComposerMode: (mode) =>
+        set({ composerMode: mode }, false, "setComposerMode"),
+      setComposerText: (text) =>
+        set({ composerText: text }, false, "setComposerText"),
       clearComposer: () => set({ composerText: "" }, false, "clearComposer"),
 
       submitBootstrap: async ({ submit }) => {
         const { draft } = get();
 
         if (!draft.narrative || draft.narrative.trim().length < 10) {
-          set({ error: "Please add a short description (at least 10 characters)." }, false);
+          set(
+            {
+              error: "Please add a short description (at least 10 characters).",
+            },
+            false,
+          );
           return;
         }
 
@@ -303,11 +398,18 @@ export const usePostWinStore = create<State>()(
           const res = await submit(draft);
 
           get().setEventStatus(eventId, "logged");
-          get().attachIds({ projectId: res.projectId, postWinId: res.postWinId ?? null });
+          get().attachIds({
+            projectId: res.projectId,
+            postWinId: res.postWinId ?? null,
+          });
 
           set({ submitting: false }, false, "bootstrap:success");
 
-          get().appendText("system", "Created. Next: verification will begin.", "verify");
+          get().appendText(
+            "system",
+            "Created. Next: verification will begin.",
+            "verify",
+          );
           get().clearComposer();
           get().setComposerMode("verify");
         } catch (e) {
@@ -318,11 +420,117 @@ export const usePostWinStore = create<State>()(
               error: e instanceof Error ? e.message : "Bootstrap failed.",
             },
             false,
-            "bootstrap:failed"
+            "bootstrap:failed",
+          );
+        }
+      },
+
+      // NEW: delivery submit (idempotency-safe retries)
+      submitDelivery: async ({ submit }) => {
+        const { ids, deliveryDraft, deliveryTxId } = get();
+
+        if (!ids.projectId) {
+          set(
+            { error: "Missing projectId. Run bootstrap first." },
+            false,
+            "delivery:missingProject",
+          );
+          return;
+        }
+
+        if (
+          !deliveryDraft.deliveryId ||
+          String(deliveryDraft.deliveryId).trim().length === 0
+        ) {
+          set({ error: "Missing deliveryId." }, false, "delivery:badInput");
+          return;
+        }
+
+        if (!deliveryDraft.occurredAt) {
+          set({ error: "Missing occurredAt." }, false, "delivery:badInput");
+          return;
+        }
+
+        if (!deliveryDraft.location) {
+          set({ error: "Missing location." }, false, "delivery:badInput");
+          return;
+        }
+
+        if (
+          !Array.isArray(deliveryDraft.items) ||
+          deliveryDraft.items.length === 0
+        ) {
+          set(
+            { error: "Add at least 1 delivered item." },
+            false,
+            "delivery:badInput",
+          );
+          return;
+        }
+
+        // tx id must be stable across retries for same logical action
+        const txId = deliveryTxId ?? makeTxId("delivery");
+        if (!deliveryTxId)
+          set({ deliveryTxId: txId }, false, "delivery:setTxId");
+
+        set({ submitting: true, error: undefined }, false, "delivery:start");
+
+        const eventId = get().appendEvent({
+          title: "Recording delivery",
+          meta: `Delivery ${deliveryDraft.deliveryId}`,
+          status: "pending",
+        });
+
+        try {
+          const res = await submit(
+            {
+              projectId: ids.projectId,
+              deliveryId: deliveryDraft.deliveryId,
+              occurredAt: deliveryDraft.occurredAt,
+              location: deliveryDraft.location,
+              items: deliveryDraft.items,
+              notes: deliveryDraft.notes || undefined,
+            },
+            { transactionId: txId },
+          );
+
+          get().setEventStatus(eventId, "logged");
+          set({ submitting: false }, false, "delivery:success");
+
+          get().appendText(
+            "system",
+            `Delivery recorded (${res.deliveryId}).`,
+            "verify",
+          );
+
+          // prepare for next delivery (new tx id)
+          set(
+            {
+              deliveryTxId: null,
+              deliveryDraft: {
+                ...get().deliveryDraft,
+                deliveryId: `delivery-${Math.floor(Math.random() * 1000)}`,
+                occurredAt: new Date().toISOString(),
+                items: [],
+                notes: "",
+              },
+            },
+            false,
+            "delivery:resetForNext",
+          );
+        } catch (e) {
+          get().setEventStatus(eventId, "failed");
+          set(
+            {
+              submitting: false,
+              error: e instanceof Error ? e.message : "Delivery failed.",
+            },
+            false,
+            "delivery:failed",
           );
         }
       },
     }),
-    { name: "posta-postwin-store" }
-  )
+    { name: "posta-postwin-store" },
+  ),
 );
