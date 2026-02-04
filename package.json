@@ -1,36 +1,12 @@
 {
-  "name": "@posta/core",
-  "version": "2.0.0",
-  "description": "",
-  "main": "dist/index.d.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "pnpm -r build",
-    "test": "echo \"Error: no test specified\" && exit 1",
-
-    "dev": "pnpm --filter @posta/backend dev",
-    "start": "pnpm --filter @posta/backend start",
-    "start:mock": "pnpm --filter @posta/backend start:mock",
-
-    "dev:backend": "pnpm --filter @posta/backend dev",
-    "start:backend": "pnpm --filter @posta/backend start",
-    "mock:backend": "pnpm --filter @posta/backend start:mock",
-
-    "build:core": "pnpm --filter @posta/core build",
-    "build:backend": "pnpm --filter @posta/backend build",
-    "typecheck": "pnpm -r typecheck"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "posta",
+  "private": true,
   "packageManager": "pnpm@10.18.2",
-  "dependencies": {
-    "@posta/core": "workspace:*",
-    "express": "^5.2.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.0.0",
-    "@types/express": "^4.17.0",
-    "@types/node": "^20.0.0"
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "dev:backend": "pnpm --filter @posta/backend dev",
+    "dev:web": "pnpm --filter @posta/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
   }
 }
