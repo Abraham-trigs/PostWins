@@ -1,7 +1,7 @@
-// app/components/chat/api/intake.ts
+// apps/web/src/app/xotic/_components/api/intake.ts
 "use client";
 
-import type { PostWinDraft } from "../store/types";
+import type { PostWinDraft } from "../chat/store/types";
 
 export type BootstrapResponse = {
   ok: true;
@@ -11,17 +11,42 @@ export type BootstrapResponse = {
 
 type BootstrapPayload = {
   narrative: string;
-  beneficiaryId?: string; // optional if you map it later
+  beneficiaryId?: string;
   category?: string;
-  location?: unknown; // keep flexible (string or object)
+  location?: unknown;
   language?: string;
-  sdgGoals?: string[]; // optional; backend defaults if missing
+  sdgGoals?: string[];
 };
 
-function makeIdempotencyKey() {
-  // Offline-safe + retry-safe
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `idem_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+function makeTransactionId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `tx_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+// NOTE: Dev-only tenant selection. In production, tenantId must come from auth/session.w
+/**
+ * Dev tenant resolution:
+ * 1) NEXT_PUBLIC_TENANT_ID
+ * 2) localStorage posta.tenantId
+ *
+ */
+function getTenantId(): string {
+  const envTenant =
+    typeof process !== "undefined"
+      ? (process.env.NEXT_PUBLIC_TENANT_ID ?? "")
+      : "";
+
+  if (envTenant && envTenant.trim()) return envTenant.trim();
+
+  if (typeof window !== "undefined") {
+    const ls = window.localStorage.getItem("posta.tenantId");
+    if (ls && ls.trim()) return ls.trim();
+  }
+
+  throw new Error(
+    "Missing tenantId. Set NEXT_PUBLIC_TENANT_ID or localStorage posta.tenantId",
+  );
 }
 
 function draftToBootstrapPayload(draft: PostWinDraft): BootstrapPayload {
@@ -30,18 +55,22 @@ function draftToBootstrapPayload(draft: PostWinDraft): BootstrapPayload {
     category: draft.category,
     location: draft.location,
     language: draft.language,
-    // sdgGoals optional; if you later add a draft field, map it here.
   };
 }
 
-export async function bootstrapIntake(draft: PostWinDraft): Promise<BootstrapResponse> {
+export async function bootstrapIntake(
+  draft: PostWinDraft,
+): Promise<BootstrapResponse> {
+  const tenantId = getTenantId();
+
   const res = await fetch("/api/intake/bootstrap", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Idempotency-Key": makeIdempotencyKey(),
+      "X-Tenant-Id": tenantId,
+      "x-transaction-id": makeTransactionId(),
       "X-Source": "web",
-      // Optional: add your actor id when you have auth/user
+      // later when auth exists:
       // "X-Actor-Id": userId,
     },
     body: JSON.stringify(draftToBootstrapPayload(draft)),
@@ -53,6 +82,5 @@ export async function bootstrapIntake(draft: PostWinDraft): Promise<BootstrapRes
     throw new Error(data?.error || "Bootstrap failed");
   }
 
-  // Backend returns { ok: true, projectId, postWinId? }
   return data as BootstrapResponse;
 }

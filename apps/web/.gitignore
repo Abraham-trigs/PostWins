@@ -19,7 +19,7 @@
 
 # production
 /build
-
+apps/backend/keys
 # misc
 .DS_Store
 *.pem
