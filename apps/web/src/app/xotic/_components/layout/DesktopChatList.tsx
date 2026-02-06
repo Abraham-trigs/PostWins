@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { usePostWinStore } from "../chat/store";
+import { usePostWinStore } from "../chat/store/usePostWinStore";
 import { listCases, type CaseListItem } from "../api/cases";
 
 type Props = {

@@ -11,9 +11,150 @@ import { DetailsEmptyState } from "../details/DetailsEmptyState";
 import { MessagesSurface } from "../chat/MessagesSurface";
 import { DetailsFullScreenOverlay } from "../details/DetailsFullScreenOverlay";
 
+import { usePostWinStore } from "../chat/store/usePostWinStore";
+import type { ChatMessage } from "../chat/store/types";
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function uid(prefix: string) {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+
+/**
+ * Dev tenant resolution:
+ * 1) NEXT_PUBLIC_TENANT_ID
+ * 2) localStorage posta.tenantId
+ *
+ * NOTE: In production, tenantId should come from auth/session.
+ */
+function getTenantId(): string {
+  const envTenant =
+    typeof process !== "undefined"
+      ? (process.env.NEXT_PUBLIC_TENANT_ID ?? "")
+      : "";
+
+  if (envTenant && envTenant.trim()) return envTenant.trim();
+
+  if (typeof window !== "undefined") {
+    const ls = window.localStorage.getItem("posta.tenantId");
+    if (ls && ls.trim()) return ls.trim();
+  }
+
+  throw new Error(
+    "Missing tenantId. Set NEXT_PUBLIC_TENANT_ID or localStorage posta.tenantId",
+  );
+}
+
+type TimelineResponse = {
+  ok: true;
+  projectId: string;
+  timeline: Array<
+    | {
+        type: "delivery";
+        occurredAt: string;
+        deliveryId: string;
+        summary: string;
+      }
+    | {
+        type: "followup";
+        occurredAt: string;
+        followupId: string;
+        kind: string;
+        deliveryId: string;
+      }
+    | {
+        type: "gap";
+        scheduledFor: string;
+        deliveryId: string;
+        label: string;
+        status: "missing" | "upcoming";
+        daysFromDelivery: number;
+      }
+  >;
+  counts?: any;
+};
+
+function timelineToMessages(t: TimelineResponse): ChatMessage[] {
+  const out: ChatMessage[] = [];
+
+  out.push({
+    id: uid("m"),
+    kind: "text",
+    role: "system",
+    mode: "verify",
+    text: `Loaded case timeline • ${t.projectId.slice(0, 8)}`,
+    createdAt: nowIso(),
+  });
+
+  for (const item of t.timeline ?? []) {
+    if (item.type === "delivery") {
+      out.push({
+        id: uid("e"),
+        kind: "event",
+        title: "Delivery recorded",
+        meta: item.summary || `Delivery ${item.deliveryId}`,
+        status: "logged",
+        createdAt: item.occurredAt,
+      });
+      continue;
+    }
+
+    if (item.type === "followup") {
+      out.push({
+        id: uid("e"),
+        kind: "event",
+        title: `Follow-up • ${item.kind}`,
+        meta: `deliveryId: ${item.deliveryId}`,
+        status: "logged",
+        createdAt: item.occurredAt,
+      });
+      continue;
+    }
+
+    // gap
+    out.push({
+      id: uid("e"),
+      kind: "event",
+      title:
+        item.status === "missing" ? "Follow-up missing" : "Follow-up scheduled",
+      meta: `${item.label} • ${new Date(item.scheduledFor).toLocaleString()} • deliveryId: ${item.deliveryId}`,
+      status: item.status === "missing" ? "failed" : "pending",
+      createdAt: item.scheduledFor,
+    });
+  }
+
+  return out;
+}
+
+async function fetchTimeline(projectId: string): Promise<TimelineResponse> {
+  const tenantId = getTenantId();
+
+  const res = await fetch(`/api/timeline/${projectId}`, {
+    method: "GET",
+    headers: {
+      "X-Tenant-Id": tenantId,
+    },
+  });
+
+  const data = (await res.json()) as any;
+
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to load timeline");
+  }
+
+  return data as TimelineResponse;
+}
+
 export function DesktopShell() {
-  const [activeId, setActiveId] = useState<number | null>(null);
+  // ✅ UUID string, not number
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [detailsFullOpen, setDetailsFullOpen] = useState(false);
+
+  const messages = usePostWinStore((s) => s.messages);
+  const resetPostWin = usePostWinStore((s) => s.resetPostWin);
+  const attachIds = usePostWinStore((s) => s.attachIds);
 
   useEffect(() => {
     if (activeId === null) setDetailsFullOpen(false);
@@ -29,8 +170,73 @@ export function DesktopShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [detailsFullOpen]);
 
+  // ✅ When a case is selected, load its timeline into the store
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      if (!activeId) return;
+
+      try {
+        // wipe UI state for the new selection
+        resetPostWin();
+        attachIds({ projectId: activeId, postWinId: null });
+
+        // show immediate loading message
+        usePostWinStore.setState(
+          {
+            messages: [
+              {
+                id: uid("m"),
+                kind: "text",
+                role: "system",
+                mode: "verify",
+                text: "Loading timeline…",
+                createdAt: nowIso(),
+              },
+            ],
+          },
+          false,
+          "timeline:loading",
+        );
+
+        const t = await fetchTimeline(activeId);
+        if (!mounted) return;
+
+        const next = timelineToMessages(t);
+
+        usePostWinStore.setState({ messages: next }, false, "timeline:loaded");
+      } catch (e) {
+        if (!mounted) return;
+
+        usePostWinStore.setState(
+          {
+            messages: [
+              {
+                id: uid("m"),
+                kind: "text",
+                role: "system",
+                mode: "verify",
+                text:
+                  e instanceof Error
+                    ? `Failed to load timeline: ${e.message}`
+                    : "Failed to load timeline.",
+                createdAt: nowIso(),
+              },
+            ],
+          },
+          false,
+          "timeline:error",
+        );
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeId, resetPostWin, attachIds]);
+
   return (
-    /* Outer background using color-one */
     <div className="h-full w-full p-[var(--xotic-pad-6)] bg-[#abc7bb]">
       <div
         className="
@@ -44,7 +250,6 @@ export function DesktopShell() {
       >
         <LeftRail />
 
-        {/* List area: Separated by color-three tint */}
         <div className="bg-surface border-r border-line/40">
           <DesktopChatList
             activeId={activeId}
@@ -63,14 +268,13 @@ export function DesktopShell() {
             className="flex-1 overflow-hidden p-[var(--xotic-pad-6)]"
           >
             {activeId === null ? (
-              /* Empty state: Using color-three for the 'hollow' container */
               <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/40 bg-surface overflow-hidden">
                 <ChatEmptyState variant="desktop" />
               </div>
             ) : (
-              /* Active Surface: Solid color-three for high-contrast focus area */
               <div className="h-full w-full rounded-[var(--xotic-radius)] bg-surface-strong border border-line/40 overflow-hidden">
-                <MessagesSurface />
+                {/* ✅ FIX: pass messages so MessagesSurface never crashes */}
+                <MessagesSurface messages={messages} />
               </div>
             )}
           </section>
@@ -78,7 +282,6 @@ export function DesktopShell() {
           <Composer />
         </main>
 
-        {/* Details: Solid block using color-one with subtle line separation */}
         <div className="w-[var(--xotic-details-w)] flex-shrink-0 border-l border-line/40 bg-paper">
           {activeId === null ? (
             <DetailsEmptyState />
