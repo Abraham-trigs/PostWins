@@ -231,14 +231,11 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
           <RotateCw className="h-4 w-4" aria-hidden="true" />
         </button>
 
+        {/* ✅ create new case: DO NOT change selection here */}
         <button
           type="button"
           aria-label="Create new case"
-          onClick={() => {
-            // optional: collapse selection so center panel shows record flow cleanly
-            onSelect(""); // no-op safe if parent ignores empty; if not safe, remove this line
-            bootstrapPostWin();
-          }}
+          onClick={bootstrapPostWin}
           className={[
             "h-9 px-4 rounded-full",
             "bg-[var(--brand-primary)] text-ink text-sm font-semibold",

@@ -30,24 +30,30 @@ function getTenantId(): string {
   );
 }
 
-export async function listCases(): Promise<{
-  ok: true;
-  cases: CaseListItem[];
-}> {
+async function postaGet<T>(path: string): Promise<T> {
   const tenantId = getTenantId();
 
-  const res = await fetch("/api/cases", {
+  const res = await fetch(path, {
     method: "GET",
     headers: {
       "X-Tenant-Id": tenantId,
     },
+    // ✅ avoid stale case list in dev/prod when called from client
+    cache: "no-store",
   });
 
   const data = (await res.json()) as any;
 
   if (!res.ok) {
-    throw new Error(data?.error || "Failed to list cases");
+    throw new Error(data?.error || "Request failed");
   }
 
-  return data as { ok: true; cases: CaseListItem[] };
+  return data as T;
+}
+
+export async function listCases(): Promise<{
+  ok: true;
+  cases: CaseListItem[];
+}> {
+  return postaGet<{ ok: true; cases: CaseListItem[] }>("/api/cases");
 }
