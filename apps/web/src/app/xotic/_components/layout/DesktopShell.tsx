@@ -1,3 +1,4 @@
+// apps/web/src/app/xotic/_components/layout/DesktopShell.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -152,9 +153,20 @@ export function DesktopShell() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailsFullOpen, setDetailsFullOpen] = useState(false);
 
+  // ✅ FIX: MessagesSurface needs messages passed in
   const messages = usePostWinStore((s) => s.messages);
+
   const resetPostWin = usePostWinStore((s) => s.resetPostWin);
   const attachIds = usePostWinStore((s) => s.attachIds);
+
+  // ✅ NEW: auto-select newly bootstrapped projectId (so UI “just works” after Record)
+  const storeProjectId = usePostWinStore((s) => s.ids.projectId);
+  useEffect(() => {
+    if (storeProjectId && storeProjectId !== activeId) {
+      setActiveId(storeProjectId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeProjectId]);
 
   useEffect(() => {
     if (activeId === null) setDetailsFullOpen(false);
@@ -273,7 +285,6 @@ export function DesktopShell() {
               </div>
             ) : (
               <div className="h-full w-full rounded-[var(--xotic-radius)] bg-surface-strong border border-line/40 overflow-hidden">
-                {/* ✅ FIX: pass messages so MessagesSurface never crashes */}
                 <MessagesSurface messages={messages} />
               </div>
             )}

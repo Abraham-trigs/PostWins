@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { useEffect, useMemo, useCallback, useState } from "react";
+import { Plus, Search, RotateCw } from "lucide-react";
 import { usePostWinStore } from "../chat/store/usePostWinStore";
 import { listCases, type CaseListItem } from "../api/cases";
 
@@ -11,7 +11,7 @@ type Props = {
 };
 
 type ChatRow = {
-  id: string; // ✅ UUID
+  id: string; // UUID
   title: string;
   preview: string;
   time: string;
@@ -95,7 +95,7 @@ function formatTime(iso: string): string {
   const d = new Date(iso);
   const diffMs = Date.now() - d.getTime();
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return `${Math.max(mins, 0)}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
@@ -103,7 +103,6 @@ function formatTime(iso: string): string {
 }
 
 function buildTitle(c: CaseListItem): string {
-  // Prefer summary/sdgGoal for human label; fall back to UUID prefix
   const idShort = c.id.slice(0, 8);
   return c.summary?.trim()
     ? c.summary.trim()
@@ -113,7 +112,6 @@ function buildTitle(c: CaseListItem): string {
 }
 
 function buildPreview(c: CaseListItem): string {
-  // Keep simple; timeline will be shown on right once selected.
   return `${c.status} • ${c.routingStatus} • ${c.type}`;
 }
 
@@ -125,39 +123,42 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
 
   const bootstrapPostWin = usePostWinStore((s) => s.bootstrapPostWin);
 
-  useEffect(() => {
-    let mounted = true;
+  // ✅ watch store ids: when bootstrap succeeds it sets ids.projectId
+  const latestProjectId = usePostWinStore((s) => s.ids.projectId);
 
-    (async () => {
-      try {
-        setLoading(true);
-        setErr(null);
+  const loadCases = useCallback(async () => {
+    try {
+      setLoading(true);
+      setErr(null);
 
-        const res = await listCases();
-        if (!mounted) return;
+      const res = await listCases();
 
-        const mapped: ChatRow[] = res.cases.map((c) => ({
-          id: c.id,
-          title: buildTitle(c),
-          preview: buildPreview(c),
-          time: formatTime(c.updatedAt ?? c.createdAt),
-          unread: false, // can later be derived from lastSeen
-        }));
+      const mapped: ChatRow[] = res.cases.map((c) => ({
+        id: c.id,
+        title: buildTitle(c),
+        preview: buildPreview(c),
+        time: formatTime(c.updatedAt ?? c.createdAt),
+        unread: false,
+      }));
 
-        setRows(mapped);
-      } catch (e) {
-        if (!mounted) return;
-        setErr(e instanceof Error ? e.message : "Failed to load cases");
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
+      setRows(mapped);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to load cases");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // initial load
+  useEffect(() => {
+    void loadCases();
+  }, [loadCases]);
+
+  // ✅ refresh list after a successful bootstrap created a new case
+  useEffect(() => {
+    if (!latestProjectId) return;
+    void loadCases();
+  }, [latestProjectId, loadCases]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -190,7 +191,7 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
       >
         <div className="min-w-0 flex-1">
           <label className="sr-only" htmlFor="xotic-search">
-            Search chats
+            Search cases
           </label>
 
           <div className="relative">
@@ -213,10 +214,31 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
           </div>
         </div>
 
+        {/* ✅ refresh */}
+        <button
+          type="button"
+          aria-label="Refresh cases"
+          onClick={() => void loadCases()}
+          disabled={loading}
+          className={[
+            "h-9 w-9 rounded-full grid place-items-center",
+            "border border-line/50 bg-surface-strong text-ink/70",
+            "hover:bg-surface transition",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "disabled:opacity-60 disabled:cursor-not-allowed",
+          ].join(" ")}
+        >
+          <RotateCw className="h-4 w-4" aria-hidden="true" />
+        </button>
+
         <button
           type="button"
           aria-label="Create new case"
-          onClick={bootstrapPostWin} // ✅ opens the record flow in chat
+          onClick={() => {
+            // optional: collapse selection so center panel shows record flow cleanly
+            onSelect(""); // no-op safe if parent ignores empty; if not safe, remove this line
+            bootstrapPostWin();
+          }}
           className={[
             "h-9 px-4 rounded-full",
             "bg-[var(--brand-primary)] text-ink text-sm font-semibold",
