@@ -27,10 +27,10 @@ function evidenceId(kind: EvidenceKind, file: File) {
 }
 
 function makeTxId(prefix: string) {
-  // stable enough for UI; API layer can also generate, but we keep txId here for retries
-  // @ts-expect-error crypto.randomUUID exists in browser
-
+  // stable enough for UI; we keep txId in store for retries
+  // @ts-expect-error - crypto.randomUUID exists in modern browsers
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    // @ts-expect-error - crypto typing differs across environments
     return `${prefix}_${crypto.randomUUID()}`;
   }
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -52,13 +52,15 @@ type DeliveryDraft = {
   notes?: string;
 };
 
-const initialDeliveryDraft: DeliveryDraft = {
-  deliveryId: "delivery-1",
-  occurredAt: new Date().toISOString(),
-  location: "",
-  items: [],
-  notes: "",
-};
+function makeInitialDeliveryDraft(): DeliveryDraft {
+  return {
+    deliveryId: `delivery-${Date.now()}`,
+    occurredAt: new Date().toISOString(),
+    location: "",
+    items: [],
+    notes: "",
+  };
+}
 
 type State = {
   ids: PostWinIds;
@@ -72,7 +74,7 @@ type State = {
   submitting: boolean;
   error?: string;
 
-  // NEW: Delivery state
+  // Delivery state
   deliveryDraft: DeliveryDraft;
   deliveryTxId: string | null;
 
@@ -117,7 +119,6 @@ type State = {
     ) => Promise<{ projectId: string; postWinId?: string | null }>;
   }) => Promise<void>;
 
-  // NEW: Delivery submit
   submitDelivery: (opts: {
     submit: (
       payload: {
@@ -153,11 +154,9 @@ export const usePostWinStore = create<State>()(
       submitting: false,
       error: undefined,
 
-      // NEW
-      deliveryDraft: initialDeliveryDraft,
+      deliveryDraft: makeInitialDeliveryDraft(),
       deliveryTxId: null,
 
-      // ✅ Clear + seed flow
       bootstrapPostWin: () => {
         set(
           {
@@ -170,7 +169,7 @@ export const usePostWinStore = create<State>()(
             submitting: false,
             error: undefined,
 
-            deliveryDraft: initialDeliveryDraft,
+            deliveryDraft: makeInitialDeliveryDraft(),
             deliveryTxId: null,
           },
           false,
@@ -204,7 +203,6 @@ export const usePostWinStore = create<State>()(
       attachIds: ({ projectId, postWinId = null }) =>
         set({ ids: { projectId, postWinId } }, false, "attachIds"),
 
-      // ✅ Hard reset, no seed
       resetPostWin: () =>
         set(
           {
@@ -217,7 +215,7 @@ export const usePostWinStore = create<State>()(
             submitting: false,
             error: undefined,
 
-            deliveryDraft: initialDeliveryDraft,
+            deliveryDraft: makeInitialDeliveryDraft(),
             deliveryTxId: null,
           },
           false,
@@ -353,7 +351,6 @@ export const usePostWinStore = create<State>()(
         );
       },
 
-      // NEW: delivery draft patchers
       patchDeliveryDraft: (patch) =>
         set(
           { deliveryDraft: { ...get().deliveryDraft, ...patch } },
@@ -363,7 +360,7 @@ export const usePostWinStore = create<State>()(
 
       resetDeliveryDraft: () =>
         set(
-          { deliveryDraft: initialDeliveryDraft, deliveryTxId: null },
+          { deliveryDraft: makeInitialDeliveryDraft(), deliveryTxId: null },
           false,
           "resetDeliveryDraft",
         ),
@@ -426,7 +423,6 @@ export const usePostWinStore = create<State>()(
         }
       },
 
-      // NEW: delivery submit (idempotency-safe retries)
       submitDelivery: async ({ submit }) => {
         const { ids, deliveryDraft, deliveryTxId } = get();
 
@@ -439,10 +435,7 @@ export const usePostWinStore = create<State>()(
           return;
         }
 
-        if (
-          !deliveryDraft.deliveryId ||
-          String(deliveryDraft.deliveryId).trim().length === 0
-        ) {
+        if (!deliveryDraft.deliveryId?.trim()) {
           set({ error: "Missing deliveryId." }, false, "delivery:badInput");
           return;
         }
@@ -469,7 +462,7 @@ export const usePostWinStore = create<State>()(
           return;
         }
 
-        // tx id must be stable across retries for same logical action
+        // txId must be stable across retries for the same logical action
         const txId = deliveryTxId ?? makeTxId("delivery");
         if (!deliveryTxId)
           set({ deliveryTxId: txId }, false, "delivery:setTxId");
@@ -504,17 +497,11 @@ export const usePostWinStore = create<State>()(
             "verify",
           );
 
-          // prepare for next delivery (new tx id)
+          // ✅ reset txId so the next delivery uses a new idempotency key
           set(
             {
               deliveryTxId: null,
-              deliveryDraft: {
-                ...get().deliveryDraft,
-                deliveryId: `delivery-${Math.floor(Math.random() * 1000)}`,
-                occurredAt: new Date().toISOString(),
-                items: [],
-                notes: "",
-              },
+              deliveryDraft: makeInitialDeliveryDraft(),
             },
             false,
             "delivery:resetForNext",
