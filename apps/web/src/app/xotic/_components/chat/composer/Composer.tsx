@@ -19,8 +19,11 @@ import {
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
 
-// ✅ API
+// ✅ FIX: correct relative path (composer -> chat -> api)
 import { bootstrapIntake, deliveryIntake } from "../../api/intake";
+
+// ✅ NEW: refresh timeline after writes
+import { fetchTimeline } from "../../api/timeline";
 
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {
@@ -54,7 +57,7 @@ export function Composer() {
 
   const submitBootstrap = usePostWinStore((s) => s.submitBootstrap);
 
-  // ✅ Delivery submit (added in the updated store file)
+  // Delivery submit (your store has this; typed as any for now)
   const submitDelivery = usePostWinStore((s) => (s as any).submitDelivery);
 
   const {
@@ -98,12 +101,14 @@ export function Composer() {
     // Always audit the user's text into the timeline
     if (trimmed.length > 0) appendText("user", trimmed, mode);
 
-    // RECORD: bootstrap backend case/postWin
+    // RECORD: bootstrap backend project/postWin
     if (mode === "record" && trimmed.length > 0) {
       patchDraft({ narrative: trimmed });
 
       await submitBootstrap({ submit: bootstrapIntake });
 
+      // Optional: refresh timeline right after bootstrap if you want the UI to show it
+      // (bootstrap currently writes ledger entries; timeline will show once deliveries exist)
       clearComposer();
       return;
     }
@@ -113,7 +118,7 @@ export function Composer() {
       if (!ids.projectId) {
         appendEvent({
           title: "Delivery blocked",
-          meta: "Missing projectId. Run Record (bootstrap) first.",
+          meta: "Missing projectId. Select a project (case) first.",
           status: "failed",
         });
         clearComposer();
@@ -123,7 +128,6 @@ export function Composer() {
       const deliveryId = `delivery-${Date.now()}`;
       const occurredAt = new Date().toISOString();
 
-      // Minimal wiring payload: you can replace items/location with a proper form later.
       const payload = {
         projectId: ids.projectId,
         deliveryId,
@@ -133,11 +137,18 @@ export function Composer() {
         notes: trimmed,
       };
 
-      // store submitDelivery keeps transactionId stable across retries
       await submitDelivery({
         submit: (p: any, ctx: { transactionId: string }) =>
           deliveryIntake(p, { transactionId: ctx.transactionId }),
+        payload,
       });
+
+      // ✅ Refresh timeline so UI reflects the new delivery immediately
+      try {
+        await fetchTimeline(ids.projectId);
+      } catch {
+        // don't block UX; timeline refresh errors are non-fatal here
+      }
 
       clearComposer();
       return;

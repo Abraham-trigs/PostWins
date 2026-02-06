@@ -1,4 +1,3 @@
-// apps/web/src/app/xotic/_components/api/intake.ts
 "use client";
 
 import type { PostWinDraft } from "../chat/store/types";
@@ -34,7 +33,7 @@ export type DeliveryPayload = {
   notes?: string;
 };
 
-function makeTransactionId() {
+export function makeTransactionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
