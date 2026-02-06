@@ -19,11 +19,8 @@ import {
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
 
-// ✅ FIX: correct relative path (composer -> chat -> api)
+// ✅ API
 import { bootstrapIntake, deliveryIntake } from "../../api/intake";
-
-// ✅ NEW: refresh timeline after writes
-import { fetchTimeline } from "../../api/timeline";
 
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {
@@ -57,8 +54,9 @@ export function Composer() {
 
   const submitBootstrap = usePostWinStore((s) => s.submitBootstrap);
 
-  // Delivery submit (your store has this; typed as any for now)
-  const submitDelivery = usePostWinStore((s) => (s as any).submitDelivery);
+  // ✅ Delivery wiring (typed + store-driven)
+  const patchDeliveryDraft = usePostWinStore((s) => s.patchDeliveryDraft);
+  const submitDelivery = usePostWinStore((s) => s.submitDelivery);
 
   const {
     attachOpen,
@@ -104,51 +102,36 @@ export function Composer() {
     // RECORD: bootstrap backend project/postWin
     if (mode === "record" && trimmed.length > 0) {
       patchDraft({ narrative: trimmed });
-
       await submitBootstrap({ submit: bootstrapIntake });
-
-      // Optional: refresh timeline right after bootstrap if you want the UI to show it
-      // (bootstrap currently writes ledger entries; timeline will show once deliveries exist)
       clearComposer();
       return;
     }
 
-    // DELIVERY: record a delivery against the existing projectId (caseId)
+    // DELIVERY: record a delivery against existing projectId (caseId)
     if (mode === "delivery" && trimmed.length > 0) {
       if (!ids.projectId) {
         appendEvent({
           title: "Delivery blocked",
-          meta: "Missing projectId. Select a project (case) first.",
+          meta: "Missing projectId. Run Record (bootstrap) first.",
           status: "failed",
         });
         clearComposer();
         return;
       }
 
-      const deliveryId = `delivery-${Date.now()}`;
-      const occurredAt = new Date().toISOString();
-
-      const payload = {
-        projectId: ids.projectId,
-        deliveryId,
-        occurredAt,
-        location: "Unknown", // replace with real UI later
+      // ✅ Minimal “no-form-yet” defaults (valid for backend)
+      // Later: replace with a proper delivery form that patches these fields.
+      patchDeliveryDraft({
+        // deliveryId/occurredAt default in store; override if you want
+        location: "Northern Region", // or "Unknown" if you prefer
         items: [{ name: "Delivery", qty: 1 }],
         notes: trimmed,
-      };
-
-      await submitDelivery({
-        submit: (p: any, ctx: { transactionId: string }) =>
-          deliveryIntake(p, { transactionId: ctx.transactionId }),
-        payload,
       });
 
-      // ✅ Refresh timeline so UI reflects the new delivery immediately
-      try {
-        await fetchTimeline(ids.projectId);
-      } catch {
-        // don't block UX; timeline refresh errors are non-fatal here
-      }
+      await submitDelivery({
+        submit: (payload, ctx) =>
+          deliveryIntake(payload, { transactionId: ctx.transactionId }),
+      });
 
       clearComposer();
       return;
