@@ -137,6 +137,7 @@ async function fetchTimeline(projectId: string): Promise<TimelineResponse> {
     headers: {
       "X-Tenant-Id": tenantId,
     },
+    cache: "no-store",
   });
 
   const data = (await res.json()) as any;
@@ -149,17 +150,16 @@ async function fetchTimeline(projectId: string): Promise<TimelineResponse> {
 }
 
 export function DesktopShell() {
-  // ✅ UUID string, not number
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailsFullOpen, setDetailsFullOpen] = useState(false);
 
-  // ✅ FIX: MessagesSurface needs messages passed in
+  // Messages live in zustand
   const messages = usePostWinStore((s) => s.messages);
 
-  const resetPostWin = usePostWinStore((s) => s.resetPostWin);
+  // Only need attachIds here (do NOT hard reset while selecting a case)
   const attachIds = usePostWinStore((s) => s.attachIds);
 
-  // ✅ NEW: auto-select newly bootstrapped projectId (so UI “just works” after Record)
+  // Auto-select newly bootstrapped projectId
   const storeProjectId = usePostWinStore((s) => s.ids.projectId);
   useEffect(() => {
     if (storeProjectId && storeProjectId !== activeId) {
@@ -182,7 +182,7 @@ export function DesktopShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [detailsFullOpen]);
 
-  // ✅ When a case is selected, load its timeline into the store
+  // When a case is selected, load its timeline into the store
   useEffect(() => {
     let mounted = true;
 
@@ -190,11 +190,9 @@ export function DesktopShell() {
       if (!activeId) return;
 
       try {
-        // wipe UI state for the new selection
-        resetPostWin();
+        // ✅ Keep ids stable; only attach + clear messages
         attachIds({ projectId: activeId, postWinId: null });
 
-        // show immediate loading message
         usePostWinStore.setState(
           {
             messages: [
@@ -216,7 +214,6 @@ export function DesktopShell() {
         if (!mounted) return;
 
         const next = timelineToMessages(t);
-
         usePostWinStore.setState({ messages: next }, false, "timeline:loaded");
       } catch (e) {
         if (!mounted) return;
@@ -246,7 +243,7 @@ export function DesktopShell() {
     return () => {
       mounted = false;
     };
-  }, [activeId, resetPostWin, attachIds]);
+  }, [activeId, attachIds]);
 
   return (
     <div className="h-full w-full p-[var(--xotic-pad-6)] bg-[#abc7bb]">

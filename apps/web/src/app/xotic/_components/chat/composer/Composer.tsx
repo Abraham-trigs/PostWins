@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo } from "react";
+import { Plus, Trash2, Send } from "lucide-react";
 import { usePostWinStore } from "../store/usePostWinStore";
 import type { EvidenceKind } from "../store/types";
 
@@ -39,7 +40,6 @@ export function Composer() {
   const text = usePostWinStore((s) => s.composerText);
   const evidence = usePostWinStore((s) => s.draft.evidence ?? []);
   const submitting = usePostWinStore((s) => s.submitting);
-  const ids = usePostWinStore((s) => s.ids);
 
   const setComposerMode = usePostWinStore((s) => s.setComposerMode);
   const setComposerText = usePostWinStore((s) => s.setComposerText);
@@ -54,9 +54,10 @@ export function Composer() {
 
   const submitBootstrap = usePostWinStore((s) => s.submitBootstrap);
 
-  // ✅ Delivery wiring (typed + store-driven)
-  const patchDeliveryDraft = usePostWinStore((s) => s.patchDeliveryDraft);
+  // ✅ Delivery wiring (store-driven)
   const submitDelivery = usePostWinStore((s) => s.submitDelivery);
+  const deliveryDraft = usePostWinStore((s) => s.deliveryDraft);
+  const patchDeliveryDraft = usePostWinStore((s) => s.patchDeliveryDraft);
 
   const {
     attachOpen,
@@ -107,37 +108,47 @@ export function Composer() {
       return;
     }
 
-    // DELIVERY: record a delivery against existing projectId (caseId)
-    if (mode === "delivery" && trimmed.length > 0) {
-      if (!ids.projectId) {
-        appendEvent({
-          title: "Delivery blocked",
-          meta: "Missing projectId. Run Record (bootstrap) first.",
-          status: "failed",
-        });
-        clearComposer();
-        return;
-      }
-
-      // ✅ Minimal “no-form-yet” defaults (valid for backend)
-      // Later: replace with a proper delivery form that patches these fields.
-      patchDeliveryDraft({
-        // deliveryId/occurredAt default in store; override if you want
-        location: "Northern Region", // or "Unknown" if you prefer
-        items: [{ name: "Delivery", qty: 1 }],
-        notes: trimmed,
-      });
-
-      await submitDelivery({
-        submit: (payload, ctx) =>
-          deliveryIntake(payload, { transactionId: ctx.transactionId }),
-      });
-
-      clearComposer();
-      return;
-    }
-
     clearComposer();
+  };
+
+  // ✅ Delivery UI logic (only applies in delivery mode)
+  const isDelivery = mode === "delivery";
+  const locationError =
+    isDelivery && deliveryDraft.location.trim().length === 0;
+
+  const hasValidItem =
+    isDelivery &&
+    deliveryDraft.items.some(
+      (i) => i.name.trim().length > 0 && Number(i.qty) > 0,
+    );
+
+  const canSendDelivery = isDelivery && !locationError && hasValidItem;
+
+  const setDeliveryLocation = (value: string) => {
+    patchDeliveryDraft({ location: value });
+  };
+
+  const addDeliveryItem = () => {
+    patchDeliveryDraft({
+      items: [...deliveryDraft.items, { name: "", qty: 1 }],
+    });
+  };
+
+  const updateDeliveryItem = (
+    idx: number,
+    patch: { name?: string; qty?: number },
+  ) => {
+    patchDeliveryDraft({
+      items: deliveryDraft.items.map((it, i) =>
+        i === idx ? { ...it, ...patch } : it,
+      ),
+    });
+  };
+
+  const removeDeliveryItem = (idx: number) => {
+    patchDeliveryDraft({
+      items: deliveryDraft.items.filter((_, i) => i !== idx),
+    });
   };
 
   return (
@@ -171,12 +182,6 @@ export function Composer() {
             Record
           </ModeTab>
           <ModeTab
-            active={mode === "followup"}
-            onClick={() => setComposerMode("followup")}
-          >
-            Follow-up
-          </ModeTab>
-          <ModeTab
             active={mode === "verify"}
             onClick={() => setComposerMode("verify")}
           >
@@ -196,110 +201,257 @@ export function Composer() {
           {primaryLabel}
         </label>
 
-        <div className="relative" ref={attachWrapRef}>
-          <button
-            type="button"
-            aria-label="Add attachment"
-            aria-haspopup="menu"
-            aria-expanded={attachOpen}
-            onClick={() => setAttachOpen((v) => !v)}
-            className={[
-              "absolute left-2 top-1/2 -translate-y-1/2",
-              "h-8 w-8 rounded-full grid place-items-center",
-              "text-ink/80 hover:text-ink",
-              "hover:bg-surface transition-colors",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--state-danger)]",
-            ].join(" ")}
-          >
-            <IconPaperclip />
-          </button>
+        {/* ✅ DELIVERY MODE: real draft UI */}
+        {isDelivery ? (
+          <div className="w-full rounded-[var(--xotic-radius)] border border-line/50 bg-paper p-[var(--xotic-pad-4)] space-y-3">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-ink/70">
+                Delivery location
+              </label>
+              <input
+                value={deliveryDraft.location}
+                onChange={(e) => setDeliveryLocation(e.target.value)}
+                placeholder="e.g. 12 Danfa Road, Accra"
+                className={[
+                  "w-full h-10 rounded-lg px-3 text-sm",
+                  "bg-surface-strong text-ink placeholder:text-ink/55",
+                  "border border-line/50",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                ].join(" ")}
+              />
+              {locationError && (
+                <p className="text-xs text-[var(--state-danger)]">
+                  Location is required.
+                </p>
+              )}
+            </div>
 
-          <input
-            id={inputId}
-            value={text}
-            onChange={(e) => setComposerText(e.target.value)}
-            placeholder={placeholder}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !attachOpen) handleSubmit();
-              if (e.key === "Escape") setAttachOpen(false);
-            }}
-            className={[
-              "w-full h-10 rounded-full pl-12 pr-4 text-sm",
-              "bg-[#6b8d87]",
-              "text-paper placeholder:text-paper/60",
-              "border border-line/50",
-              "focus:outline-none focus-visible:ring-[var(--state-danger)]",
-            ].join(" ")}
-          />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-ink/70">
+                  Delivery items
+                </label>
 
-          {attachOpen && (
-            <div
-              role="menu"
-              aria-label="Attachment types"
-              className={[
-                "absolute left-2 bottom-12 z-20",
-                "min-w-52 rounded-[var(--xotic-radius)]",
-                "bg-surface-strong text-ink border border-line/50 shadow-card",
-                "p-1",
-              ].join(" ")}
-            >
-              <MenuItem
-                label="Image"
-                icon={<IconImage />}
-                onClick={() => triggerAttach("image")}
-              />
-              <MenuItem
-                label="Video"
-                icon={<IconVideo />}
-                onClick={() => triggerAttach("video")}
-              />
-              <MenuItem
-                label="Document"
-                icon={<IconDocument />}
-                onClick={() => triggerAttach("document")}
-              />
-              <MenuItem
-                label="Audio"
-                icon={<IconAudio />}
-                onClick={() => triggerAttach("audio")}
+                <button
+                  type="button"
+                  onClick={addDeliveryItem}
+                  className="inline-flex items-center gap-2 text-xs font-semibold text-ink/75 hover:text-ink"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add item
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {deliveryDraft.items.map((it, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      value={it.name}
+                      onChange={(e) =>
+                        updateDeliveryItem(idx, { name: e.target.value })
+                      }
+                      placeholder="Item name"
+                      className={[
+                        "flex-1 h-10 rounded-lg px-3 text-sm",
+                        "bg-surface-strong text-ink placeholder:text-ink/55",
+                        "border border-line/50",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      ].join(" ")}
+                    />
+
+                    <input
+                      value={String(it.qty)}
+                      onChange={(e) =>
+                        updateDeliveryItem(idx, {
+                          qty:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                        })
+                      }
+                      inputMode="numeric"
+                      type="number"
+                      min={0}
+                      className={[
+                        "w-20 h-10 rounded-lg px-3 text-sm",
+                        "bg-surface-strong text-ink placeholder:text-ink/55",
+                        "border border-line/50",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      ].join(" ")}
+                    />
+
+                    <button
+                      type="button"
+                      aria-label="Remove item"
+                      onClick={() => removeDeliveryItem(idx)}
+                      className={[
+                        "h-10 w-10 rounded-lg grid place-items-center",
+                        "border border-line/50 bg-surface-strong text-ink/70",
+                        "hover:bg-surface transition",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      ].join(" ")}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {!hasValidItem && (
+                <p className="text-xs text-[var(--state-danger)]">
+                  Add at least one item with a name and qty &gt; 0.
+                </p>
+              )}
+            </div>
+
+            {/* ✅ NOTES */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-ink/70">
+                Notes (optional)
+              </label>
+              <textarea
+                value={deliveryDraft.notes ?? ""}
+                onChange={(e) => patchDeliveryDraft({ notes: e.target.value })}
+                placeholder="Anything the recipient should know…"
+                rows={2}
+                className={[
+                  "w-full rounded-lg px-3 py-2 text-sm",
+                  "bg-surface-strong text-ink placeholder:text-ink/55",
+                  "border border-line/50",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "resize-none",
+                ].join(" ")}
               />
             </div>
-          )}
-        </div>
 
-        {evidence.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2 px-2">
-            {evidence.map((e) => (
-              <AttachmentChip
-                key={e.id}
-                evidence={e}
-                onRemove={() => removeEvidence(e.id)}
-              />
-            ))}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void submitDelivery({ submit: deliveryIntake })}
+                disabled={!canSendDelivery || submitting}
+                className={[
+                  "h-10 px-4 rounded-full inline-flex items-center gap-2",
+                  "bg-[var(--brand-primary)] text-ink text-sm font-semibold",
+                  "hover:opacity-95 transition",
+                  "disabled:opacity-60 disabled:cursor-not-allowed",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                ].join(" ")}
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Send Delivery
+              </button>
+            </div>
           </div>
-        )}
+        ) : (
+          <>
+            {/* Existing composer input (record/verify/followup) */}
+            <div className="relative" ref={attachWrapRef}>
+              <button
+                type="button"
+                aria-label="Add attachment"
+                aria-haspopup="menu"
+                aria-expanded={attachOpen}
+                onClick={() => setAttachOpen((v) => !v)}
+                className={[
+                  "absolute left-2 top-1/2 -translate-y-1/2",
+                  "h-8 w-8 rounded-full grid place-items-center",
+                  "text-ink/80 hover:text-ink",
+                  "hover:bg-surface transition-colors",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--state-danger)]",
+                ].join(" ")}
+              >
+                <IconPaperclip />
+              </button>
 
-        <div className="mt-1 px-3 text-[10px] uppercase tracking-wider font-semibold text-ink/60">
-          {modeLabel} • Audit-first • Draft-authoritative
-        </div>
+              <input
+                id={inputId}
+                value={text}
+                onChange={(e) => setComposerText(e.target.value)}
+                placeholder={placeholder}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !attachOpen) handleSubmit();
+                  if (e.key === "Escape") setAttachOpen(false);
+                }}
+                className={[
+                  "w-full h-10 rounded-full pl-12 pr-4 text-sm",
+                  "bg-[#6b8d87]",
+                  "text-paper placeholder:text-paper/60",
+                  "border border-line/50",
+                  "focus:outline-none focus-visible:ring-[var(--state-danger)]",
+                ].join(" ")}
+              />
+
+              {attachOpen && (
+                <div
+                  role="menu"
+                  aria-label="Attachment types"
+                  className={[
+                    "absolute left-2 bottom-12 z-20",
+                    "min-w-52 rounded-[var(--xotic-radius)]",
+                    "bg-surface-strong text-ink border border-line/50 shadow-card",
+                    "p-1",
+                  ].join(" ")}
+                >
+                  <MenuItem
+                    label="Image"
+                    icon={<IconImage />}
+                    onClick={() => triggerAttach("image")}
+                  />
+                  <MenuItem
+                    label="Video"
+                    icon={<IconVideo />}
+                    onClick={() => triggerAttach("video")}
+                  />
+                  <MenuItem
+                    label="Document"
+                    icon={<IconDocument />}
+                    onClick={() => triggerAttach("document")}
+                  />
+                  <MenuItem
+                    label="Audio"
+                    icon={<IconAudio />}
+                    onClick={() => triggerAttach("audio")}
+                  />
+                </div>
+              )}
+            </div>
+
+            {evidence.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2 px-2">
+                {evidence.map((e) => (
+                  <AttachmentChip
+                    key={e.id}
+                    evidence={e}
+                    onRemove={() => removeEvidence(e.id)}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="mt-1 px-3 text-[10px] uppercase tracking-wider font-semibold text-ink/60">
+              {modeLabel} • Audit-first • Draft-authoritative
+            </div>
+          </>
+        )}
       </div>
 
-      <button
-        type="button"
-        aria-label={primaryLabel}
-        disabled={!canSubmit || submitting}
-        onClick={handleSubmit}
-        className={[
-          "h-10 w-10 rounded-full flex-shrink-0 grid place-items-center",
-          "transition-transform transition-colors duration-200",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--state-danger)]",
-          canSubmit && !submitting
-            ? "bg-red text-white shadow-card hover:scale-[1.04] active:scale-[0.98]"
-            : "bg-surface-strong text-ink/60 cursor-not-allowed border border-line/50",
-        ].join(" ")}
-      >
-        <IconSend />
-      </button>
+      {/* Keep existing send button for non-delivery modes */}
+      {!isDelivery && (
+        <button
+          type="button"
+          aria-label={primaryLabel}
+          disabled={!canSubmit || submitting}
+          onClick={handleSubmit}
+          className={[
+            "h-10 w-10 rounded-full flex-shrink-0 grid place-items-center",
+            "transition-transform transition-colors duration-200",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--state-danger)]",
+            canSubmit && !submitting
+              ? "bg-red text-white shadow-card hover:scale-[1.04] active:scale-[0.98]"
+              : "bg-surface-strong text-ink/60 cursor-not-allowed border border-line/50",
+          ].join(" ")}
+        >
+          <IconSend />
+        </button>
+      )}
 
       {/* Hidden inputs */}
       <input

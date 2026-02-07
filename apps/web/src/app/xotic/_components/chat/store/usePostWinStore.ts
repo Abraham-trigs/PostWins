@@ -12,6 +12,8 @@ import type {
   EvidenceFile,
   ChatRole,
   PostWinIds,
+  DeliveryDraft,
+  DeliveryItem,
 } from "./types";
 
 function nowIso() {
@@ -44,22 +46,18 @@ const initialDraft: PostWinDraft = {
 
 const initialStep: IntakeStep = "postwin_narrative";
 
-type DeliveryDraft = {
-  deliveryId: string;
-  occurredAt: string; // ISO
-  location: unknown;
-  items: Array<{ name: string; qty: number }>;
-  notes?: string;
-};
-
 function makeInitialDeliveryDraft(): DeliveryDraft {
   return {
-    deliveryId: `delivery-${Date.now()}`,
-    occurredAt: new Date().toISOString(),
     location: "",
-    items: [],
-    notes: "",
+    items: [{ name: "", qty: 1 }],
+    notes: "", // ✅ NEW
   };
+}
+
+function normalizeDeliveryItems(items: DeliveryItem[]) {
+  return items
+    .map((i) => ({ name: i.name.trim(), qty: Number(i.qty) }))
+    .filter((i) => i.name.length > 0 && Number.isFinite(i.qty) && i.qty > 0);
 }
 
 type State = {
@@ -435,27 +433,18 @@ export const usePostWinStore = create<State>()(
           return;
         }
 
-        if (!deliveryDraft.deliveryId?.trim()) {
-          set({ error: "Missing deliveryId." }, false, "delivery:badInput");
-          return;
-        }
+        const location = deliveryDraft.location.trim();
+        const items = normalizeDeliveryItems(deliveryDraft.items);
+        const notes = deliveryDraft.notes?.trim() || undefined; // ✅ NEW
 
-        if (!deliveryDraft.occurredAt) {
-          set({ error: "Missing occurredAt." }, false, "delivery:badInput");
-          return;
-        }
-
-        if (!deliveryDraft.location) {
+        if (!location) {
           set({ error: "Missing location." }, false, "delivery:badInput");
           return;
         }
 
-        if (
-          !Array.isArray(deliveryDraft.items) ||
-          deliveryDraft.items.length === 0
-        ) {
+        if (items.length === 0) {
           set(
-            { error: "Add at least 1 delivered item." },
+            { error: "Add at least 1 delivered item (name + qty > 0)." },
             false,
             "delivery:badInput",
           );
@@ -469,9 +458,18 @@ export const usePostWinStore = create<State>()(
 
         set({ submitting: true, error: undefined }, false, "delivery:start");
 
+        const deliveryId =
+          // @ts-expect-error - crypto.randomUUID exists in modern browsers
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? // @ts-expect-error - crypto typing differs across environments
+              `delivery_${crypto.randomUUID()}`
+            : `delivery_${Date.now()}`;
+
+        const occurredAt = nowIso();
+
         const eventId = get().appendEvent({
           title: "Recording delivery",
-          meta: `Delivery ${deliveryDraft.deliveryId}`,
+          meta: `Delivery ${deliveryId}`,
           status: "pending",
         });
 
@@ -479,11 +477,11 @@ export const usePostWinStore = create<State>()(
           const res = await submit(
             {
               projectId: ids.projectId,
-              deliveryId: deliveryDraft.deliveryId,
-              occurredAt: deliveryDraft.occurredAt,
-              location: deliveryDraft.location,
-              items: deliveryDraft.items,
-              notes: deliveryDraft.notes || undefined,
+              deliveryId,
+              occurredAt,
+              location,
+              items,
+              notes, // ✅ NEW
             },
             { transactionId: txId },
           );

@@ -1,6 +1,7 @@
+// apps/web/src/app/xotic/_components/api/intake.ts
 "use client";
 
-import type { PostWinDraft } from "../chat/store/types";
+import type { PostWinDraft, DeliveryDraft } from "../chat/store/types";
 
 export type BootstrapResponse = {
   ok: true;
@@ -33,7 +34,7 @@ export type DeliveryPayload = {
   notes?: string;
 };
 
-export function makeTransactionId() {
+function makeTransactionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
@@ -65,6 +66,39 @@ function draftToBootstrapPayload(draft: PostWinDraft): BootstrapPayload {
     category: draft.category,
     location: draft.location,
     language: draft.language,
+  };
+}
+
+/**
+ * ✅ NEW: Convert DeliveryDraft into the DeliveryPayload your backend expects.
+ * - location: keep as unknown (backend decides structure)
+ * - items: filter invalid rows (empty name or qty <= 0)
+ */
+function draftToDeliveryPayload(args: {
+  projectId: string;
+  draft: DeliveryDraft;
+  notes?: string;
+  occurredAt?: string; // allow caller override
+  deliveryId?: string; // allow caller override
+}): DeliveryPayload {
+  const occurredAt = args.occurredAt ?? new Date().toISOString();
+  const deliveryId =
+    args.deliveryId ??
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `del_${Math.random().toString(16).slice(2)}_${Date.now()}`);
+
+  const items = args.draft.items
+    .map((i) => ({ name: i.name.trim(), qty: Number(i.qty) }))
+    .filter((i) => i.name.length > 0 && Number.isFinite(i.qty) && i.qty > 0);
+
+  return {
+    projectId: args.projectId,
+    deliveryId,
+    occurredAt,
+    location: args.draft.location, // keep unknown; backend can normalize
+    items,
+    notes: args.notes,
   };
 }
 
@@ -109,9 +143,31 @@ export async function bootstrapIntake(
   );
 }
 
+/**
+ * Existing low-level function: still supported.
+ * Use this when you already have a complete DeliveryPayload.
+ */
 export async function deliveryIntake(
   payload: DeliveryPayload,
   opts?: { transactionId?: string },
 ): Promise<DeliveryResponse> {
   return postaPost<DeliveryResponse>("/api/intake/delivery", payload, opts);
+}
+
+/**
+ * ✅ NEW ergonomic function: call with projectId + DeliveryDraft.
+ * This is what Composer/store should use.
+ */
+export async function deliveryIntakeFromDraft(
+  args: {
+    projectId: string;
+    draft: DeliveryDraft;
+    notes?: string;
+    occurredAt?: string;
+    deliveryId?: string;
+  },
+  opts?: { transactionId?: string },
+): Promise<DeliveryResponse> {
+  const payload = draftToDeliveryPayload(args);
+  return deliveryIntake(payload, opts);
 }

@@ -58,6 +58,23 @@ export type PostWinDraft = {
 };
 
 /**
+ * ✅ NEW — Delivery input contract
+ * This replaces the fake:
+ *   "Unknown" + [{ name: "Delivery", qty: 1 }]
+ */
+
+export type DeliveryItem = {
+  name: string;
+  qty: number;
+};
+
+export type DeliveryDraft = {
+  location: string;
+  items: DeliveryItem[];
+  notes?: string;
+};
+
+/**
  * Backend truth (Option A):
  * - projectId = UI "PostWin" container id (timeline root)
  * - postWinId = verification/audit root (optional but supported)
