@@ -37,7 +37,7 @@ export function MessagesSurface({
       }
 
       default:
-        // no-op (future-safe)
+        // future-safe no-op
         break;
     }
   };
