@@ -28,21 +28,23 @@ export function MessagesSurface({
         store.goToQuestionnaireStep("step1_location");
         break;
 
-      case "confirm": {
+      case "confirm":
         if (store.replayQueue?.length > 0) {
           store.appendEvent({
-            title: "Cannot finalize yet",
-            meta: "Pending offline actions must sync first",
+            title: "Sync in progress",
+            meta: "Offline actions are being replayed",
             status: "pending",
           });
-          return;
+          break;
         }
 
-        store.finalizeQuestionnaire();
-        break;
-      }
+        store.appendEvent({
+          title: "Sync complete",
+          meta: "All offline actions have been applied",
+          status: "logged",
+        });
 
-      default:
+        store.finalizeQuestionnaire();
         break;
     }
   };
@@ -246,3 +248,27 @@ function ActionRow({
     </div>
   );
 }
+
+/**
+ * SCALABILITY NOTE (Replay Progress)
+ *
+ * This implementation intentionally emits coarse-grained replay lifecycle
+ * events ("Sync in progress" → "Sync complete") instead of fine-grained progress.
+ *
+ * As replay complexity grows, this can scale in three non-breaking ways:
+ *
+ * 1) Incremental events:
+ *    Emit structured progress updates (e.g. n/m actions applied) as additional
+ *    in-chat events without changing the confirmation flow.
+ *
+ * 2) Store-driven streaming:
+ *    Subscribe to replay state in the store and surface progress reactively,
+ *    enabling live updates while preserving the single intent boundary here.
+ *
+ * 3) Evolving event model:
+ *    Collapse replay into a single long-lived event whose meta/status updates
+ *    over time, preventing message spam while remaining audit-visible.
+ *
+ * The current approach optimizes for correctness and auditability first,
+ * while keeping all future upgrades strictly additive.
+ */
