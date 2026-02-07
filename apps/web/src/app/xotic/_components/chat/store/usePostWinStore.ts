@@ -35,9 +35,9 @@ function evidenceId(kind: EvidenceKind, file: File) {
 }
 
 function makeTxId(prefix: string) {
-  // @ts-expect-error - crypto.randomUUID exists in modern browsers
+  // @ts-expect-error
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    // @ts-expect-error - crypto typing differs across environments
+    // @ts-expect-error
     return `${prefix}_${crypto.randomUUID()}`;
   }
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -266,21 +266,51 @@ export const usePostWinStore = create<State>()(
           "questionnaire:start",
         ),
 
+      // ✅ AUTHORITATIVE FIX
       answerQuestion: (key, value) =>
         set(
-          (state) => ({
-            questionnaire: {
-              ...state.questionnaire,
-              answers: {
-                ...state.questionnaire.answers,
-                [key]: value,
+          (state) => {
+            const now = nowIso();
+
+            const nextAnswers = {
+              ...state.questionnaire.answers,
+              [key]: value,
+            };
+
+            if (state.questionnaire.step === "step1_location") {
+              return {
+                questionnaire: {
+                  active: true,
+                  step: "step2",
+                  answers: nextAnswers,
+                },
+                messages: [
+                  ...state.messages,
+                  {
+                    id: crypto.randomUUID(),
+                    kind: "text",
+                    role: "system",
+                    mode: "record",
+                    text: "Got it. Now let’s talk about who this PostWin is for.",
+                    createdAt: now,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    kind: "form_block",
+                    step: "beneficiary",
+                    createdAt: now,
+                  },
+                ],
+              };
+            }
+
+            return {
+              questionnaire: {
+                ...state.questionnaire,
+                answers: nextAnswers,
               },
-              step:
-                state.questionnaire.step === "step1_location"
-                  ? "step2"
-                  : state.questionnaire.step,
-            },
-          }),
+            };
+          },
           false,
           "questionnaire:answer",
         ),
