@@ -38,14 +38,14 @@ export type ChatMessage =
        * `step` is the single source of truth
        * for which in-chat form/questionnaire UI to render.
        */
-      step: // 🔁 legacy / existing intake steps
+      step: // legacy / existing intake steps
         | "postwin_narrative"
         | "beneficiary"
         | "category_location"
         | "evidence"
         | "review"
 
-        // 🆕 questionnaire-driven steps (chat-native)
+        // questionnaire-driven steps (chat-native)
         | "step1_location";
       createdAt: string;
     }
@@ -99,8 +99,14 @@ export type LocationAnswer = {
   bounds?: any;
 };
 
+export type BeneficiaryAnswer = {
+  beneficiaryType: "individual" | "group" | "community" | "organization";
+  beneficiaryName?: string;
+};
+
 export type QuestionnaireAnswers = {
   location?: LocationAnswer;
+  beneficiary?: BeneficiaryAnswer;
 };
 
 /* =========================================================

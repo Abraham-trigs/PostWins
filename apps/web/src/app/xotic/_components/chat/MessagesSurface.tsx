@@ -6,8 +6,9 @@ import { Activity } from "lucide-react";
 import type { ChatMessage, ComposerMode } from "./store/types";
 import { usePostWinStore } from "./store/usePostWinStore";
 
-// ⬇️ Step 1 questionnaire UI
+// ⬇️ Questionnaire UIs
 import Step1Question from "../.././_components/chat/questionaire/Step1Question";
+import Step2Beneficiary from "../.././_components/chat/questionaire/Step2Beneficiary";
 
 export function MessagesSurface({
   messages = [],
@@ -159,7 +160,18 @@ function FormBlock({
         </div>
       );
 
-    // ⬇️ legacy / future steps fall through for now
+    case "beneficiary":
+      return (
+        <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
+          <Step2Beneficiary
+            value={questionnaire.answers.beneficiary}
+            onAnswer={(value) => {
+              answerQuestion("beneficiary", value);
+            }}
+          />
+        </div>
+      );
+
     default:
       return (
         <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
