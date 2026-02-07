@@ -9,7 +9,7 @@ import { usePostWinStore } from "./store/usePostWinStore";
 // ⬇️ Questionnaire UIs
 import Step1Question from "../.././_components/chat/questionaire/Step1Question";
 import Step2Beneficiary from "../.././_components/chat/questionaire/Step2Beneficiary";
-import ReviewStep from "../questionnaire/ReviewStep";
+import ReviewStep from "../.././_components/chat/questionaire/ReviewStep";
 
 export function MessagesSurface({
   messages = [],

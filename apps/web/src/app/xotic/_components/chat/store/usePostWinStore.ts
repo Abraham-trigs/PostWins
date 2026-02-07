@@ -1,4 +1,3 @@
-// apps/web/src/app/xotic/_components/chat/store/usePostWinStore.ts
 "use client";
 
 import { create } from "zustand";
@@ -133,6 +132,10 @@ type State = {
     value: QuestionnaireAnswers[K],
   ) => void;
 
+  // ✅ ADDITIVE
+  goToQuestionnaireStep: (step: QuestionnaireStep) => void;
+  finalizeQuestionnaire: () => void;
+
   // Composer
   setComposerMode: (mode: ComposerMode) => void;
   setComposerText: (text: string) => void;
@@ -266,12 +269,11 @@ export const usePostWinStore = create<State>()(
           "questionnaire:start",
         ),
 
-      // ✅ AUTHORITATIVE FIX
+      // Step 1 → Step 2 → Review (additive)
       answerQuestion: (key, value) =>
         set(
           (state) => {
             const now = nowIso();
-
             const nextAnswers = {
               ...state.questionnaire.answers,
               [key]: value,
@@ -304,6 +306,25 @@ export const usePostWinStore = create<State>()(
               };
             }
 
+            if (state.questionnaire.step === "step2") {
+              return {
+                questionnaire: {
+                  active: true,
+                  step: "review",
+                  answers: nextAnswers,
+                },
+                messages: [
+                  ...state.messages,
+                  {
+                    id: crypto.randomUUID(),
+                    kind: "form_block",
+                    step: "review",
+                    createdAt: now,
+                  },
+                ],
+              };
+            }
+
             return {
               questionnaire: {
                 ...state.questionnaire,
@@ -313,6 +334,63 @@ export const usePostWinStore = create<State>()(
           },
           false,
           "questionnaire:answer",
+        ),
+
+      // ✅ ADDITIVE: edit from review
+      goToQuestionnaireStep: (step) =>
+        set(
+          (state) => ({
+            questionnaire: {
+              ...state.questionnaire,
+              step,
+            },
+            messages: [
+              ...state.messages,
+              {
+                id: crypto.randomUUID(),
+                kind: "form_block",
+                step,
+                createdAt: nowIso(),
+              },
+            ],
+          }),
+          false,
+          "questionnaire:goto",
+        ),
+
+      // ✅ ADDITIVE: finalize review
+      finalizeQuestionnaire: () =>
+        set(
+          (state) => {
+            const { location, beneficiary } = state.questionnaire.answers;
+
+            return {
+              questionnaire: {
+                active: false,
+                step: "done",
+                answers: state.questionnaire.answers,
+              },
+              draft: {
+                ...state.draft,
+                location: location?.digitalAddress,
+                beneficiaryType: beneficiary?.beneficiaryType,
+                beneficiaryName: beneficiary?.beneficiaryName,
+              },
+              messages: [
+                ...state.messages,
+                {
+                  id: crypto.randomUUID(),
+                  kind: "text",
+                  role: "system",
+                  mode: "record",
+                  text: "Thanks. You can now describe the PostWin in your own words.",
+                  createdAt: nowIso(),
+                },
+              ],
+            };
+          },
+          false,
+          "questionnaire:finalize",
         ),
 
       /* ---------- timeline ---------- */
