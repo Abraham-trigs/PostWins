@@ -7,17 +7,41 @@ import type { ChatMessage, ComposerMode } from "./store/types";
 import { usePostWinStore } from "./store/usePostWinStore";
 
 // ⬇️ Questionnaire UIs
-import Step1Question from "../.././_components/chat/questionaire/Step1Question";
-import Step2Beneficiary from "../.././_components/chat/questionaire/Step2Beneficiary";
-import ReviewStep from "../.././_components/chat/questionaire/ReviewStep";
+import Step1Question from "./questionaire/Step1Question";
+import Step2Beneficiary from "./questionaire/Step2Beneficiary";
+import ReviewStep from "./questionaire/ReviewStep";
+
+type Action = { id: string; label: string; value: string };
 
 export function MessagesSurface({
   messages = [],
-  onAction,
 }: {
   messages?: ChatMessage[];
-  onAction?: (action: { id: string; label: string; value: string }) => void;
 }) {
+  const handleAction = (action: Action) => {
+    const store = usePostWinStore.getState();
+
+    switch (action.value) {
+      case "edit":
+        store.goToQuestionnaireStep("step1_location");
+        break;
+
+      case "confirm": {
+        const ok = window.confirm(
+          "Create this PostWin using the reviewed details?",
+        );
+        if (ok) {
+          store.finalizeQuestionnaire();
+        }
+        break;
+      }
+
+      default:
+        // no-op (future-safe)
+        break;
+    }
+  };
+
   return (
     <div
       aria-label="Messages surface"
@@ -34,7 +58,7 @@ export function MessagesSurface({
             </div>
           ) : (
             messages.map((m) => (
-              <MessageRow key={m.id} msg={m} onAction={onAction} />
+              <MessageRow key={m.id} msg={m} onAction={handleAction} />
             ))
           )}
 
@@ -47,12 +71,16 @@ export function MessagesSurface({
   );
 }
 
+/* =========================================================
+   Message Row
+========================================================= */
+
 function MessageRow({
   msg,
   onAction,
 }: {
   msg: ChatMessage;
-  onAction?: (action: { id: string; label: string; value: string }) => void;
+  onAction: (action: Action) => void;
 }) {
   switch (msg.kind) {
     case "text":
@@ -73,6 +101,10 @@ function MessageRow({
       return null;
   }
 }
+
+/* =========================================================
+   Text / Event UI
+========================================================= */
 
 function TextBubble({
   role,
@@ -134,7 +166,7 @@ function EventCard({
 }
 
 /* =========================================================
-   In-chat form / questionnaire rendering
+   In-chat Form Rendering
 ========================================================= */
 
 function FormBlock({
@@ -150,9 +182,7 @@ function FormBlock({
         <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
           <Step1Question
             value={questionnaire.answers.location}
-            onAnswer={(value) => {
-              answerQuestion("location", value);
-            }}
+            onAnswer={(value) => answerQuestion("location", value)}
           />
         </div>
       );
@@ -162,9 +192,7 @@ function FormBlock({
         <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
           <Step2Beneficiary
             value={questionnaire.answers.beneficiary}
-            onAnswer={(value) => {
-              answerQuestion("beneficiary", value);
-            }}
+            onAnswer={(value) => answerQuestion("beneficiary", value)}
           />
         </div>
       );
@@ -172,17 +200,7 @@ function FormBlock({
     case "review":
       return (
         <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
-          <ReviewStep
-            answers={questionnaire.answers}
-            onEdit={() => {
-              usePostWinStore
-                .getState()
-                .goToQuestionnaireStep("step1_location");
-            }}
-            onConfirm={() => {
-              usePostWinStore.getState().finalizeQuestionnaire();
-            }}
-          />
+          <ReviewStep answers={questionnaire.answers} />
         </div>
       );
 
@@ -198,12 +216,16 @@ function FormBlock({
   }
 }
 
+/* =========================================================
+   Action Row (dumb)
+========================================================= */
+
 function ActionRow({
   actions,
   onAction,
 }: {
   actions: Extract<ChatMessage, { kind: "action_row" }>["actions"];
-  onAction?: (action: { id: string; label: string; value: string }) => void;
+  onAction: (action: Action) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -212,7 +234,7 @@ function ActionRow({
           key={a.id}
           type="button"
           className="rounded-full border border-line/50 bg-surface-strong px-3 py-2 text-xs font-semibold text-ink hover:bg-surface"
-          onClick={() => onAction?.(a)}
+          onClick={() => onAction(a)}
         >
           {a.label}
         </button>
