@@ -249,7 +249,7 @@ export function DesktopShell() {
     <div className="h-full w-full p-[var(--xotic-pad-6)] bg-[#abc7bb]">
       <div
         className="
-          h-full w-full
+          h-screen w-full
           rounded-[var(--xotic-radius-lg)]
           bg-paper
           flex

@@ -270,15 +270,18 @@ export const usePostWinStore = create<State>()(
         ),
 
       // Step 1 → Step 2 → Review (additive)
+      // ✅ ADDITIVE: advance to Review step after beneficiary
       answerQuestion: (key, value) =>
         set(
           (state) => {
             const now = nowIso();
+
             const nextAnswers = {
               ...state.questionnaire.answers,
               [key]: value,
             };
 
+            // STEP 1 → STEP 2 (already implemented)
             if (state.questionnaire.step === "step1_location") {
               return {
                 questionnaire: {
@@ -306,7 +309,10 @@ export const usePostWinStore = create<State>()(
               };
             }
 
+            // ✅ STEP 2 → REVIEW (NEW, ADDITIVE)
             if (state.questionnaire.step === "step2") {
+              const location = state.questionnaire.answers.location;
+
               return {
                 questionnaire: {
                   active: true,
@@ -317,14 +323,49 @@ export const usePostWinStore = create<State>()(
                   ...state.messages,
                   {
                     id: crypto.randomUUID(),
+                    kind: "text",
+                    role: "system",
+                    mode: "record",
+                    text: [
+                      "Here’s a quick review before we create this PostWin:",
+                      "",
+                      location
+                        ? `• Location: ${location.digitalAddress}`
+                        : "• Location: —",
+                      value && typeof value === "object"
+                        ? "• Beneficiary: provided"
+                        : "• Beneficiary: —",
+                    ].join("\n"),
+                    createdAt: now,
+                  },
+                  {
+                    id: crypto.randomUUID(),
                     kind: "form_block",
                     step: "review",
+                    createdAt: now,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    kind: "action_row",
+                    actions: [
+                      {
+                        id: "confirm_postwin",
+                        label: "Confirm & Create",
+                        value: "confirm",
+                      },
+                      {
+                        id: "edit_postwin",
+                        label: "Edit answers",
+                        value: "edit",
+                      },
+                    ],
                     createdAt: now,
                   },
                 ],
               };
             }
 
+            // default: just store the answer
             return {
               questionnaire: {
                 ...state.questionnaire,
