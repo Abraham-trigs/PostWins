@@ -11,7 +11,7 @@ import Step1Question from "./questionaire/Step1Question";
 import Step2Beneficiary from "./questionaire/Step2Beneficiary";
 import ReviewStep from "./questionaire/ReviewStep";
 
-import { DecisionButton } from "../DecisionButton";
+import { DecisionButton } from "./UI/DecisionButton";
 
 type Action = { id: string; label: string; value: string };
 
@@ -28,36 +28,26 @@ export function MessagesSurface({
         store.goToQuestionnaireStep("step1_location");
         break;
 
-      case "confirm": {
-        const hasPendingSync = messages.some(
-          (m) =>
-            m.kind === "event" &&
-            m.title === "Sync in progress" &&
-            m.status === "pending",
-        );
-
+      case "confirm":
         if (store.replayQueue?.length > 0) {
-          if (!hasPendingSync) {
-            store.appendEvent({
-              title: "Sync in progress",
-              meta: "Offline actions are being replayed",
-              status: "pending",
-            });
-          }
+          store.upsertEvent({
+            key: "replay-sync",
+            title: "Sync in progress",
+            meta: "Offline actions are being replayed",
+            status: "pending",
+          });
           break;
         }
 
-        if (hasPendingSync) {
-          store.appendEvent({
-            title: "Sync complete",
-            meta: "All offline actions have been applied",
-            status: "logged",
-          });
-        }
+        store.upsertEvent({
+          key: "replay-sync",
+          title: "Sync complete",
+          meta: "All offline actions have been applied",
+          status: "logged",
+        });
 
         store.finalizeQuestionnaire();
         break;
-      }
 
       default:
         // future-safe no-op
@@ -268,23 +258,7 @@ function ActionRow({
 /**
  * SCALABILITY NOTE (Replay Progress)
  *
- * This implementation intentionally emits coarse-grained replay lifecycle
- * events ("Sync in progress" → "Sync complete") instead of fine-grained progress.
- *
- * As replay complexity grows, this can scale in three non-breaking ways:
- *
- * 1) Incremental events:
- *    Emit structured progress updates (e.g. n/m actions applied) as additional
- *    in-chat events without changing the confirmation flow.
- *
- * 2) Store-driven streaming:
- *    Subscribe to replay state in the store and surface progress reactively,
- *    enabling live updates while preserving the single intent boundary here.
- *
- * 3) Evolving event model:
- *    Collapse replay into a single long-lived event whose meta/status updates
- *    over time, preventing message spam while remaining audit-visible.
- *
- * The current approach optimizes for correctness and auditability first,
- * while keeping all future upgrades strictly additive.
+ * Replay progress is modeled as a single evolving system event
+ * via a keyed upsertEvent in the store. This prevents message spam
+ * and keeps audit history readable as replay complexity grows.
  */

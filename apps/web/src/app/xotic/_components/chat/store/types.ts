@@ -14,6 +14,16 @@ export type EvidenceFile = {
    Chat Messages
 ========================================================= */
 
+export type EventMessage = {
+  id: string;
+  kind: "event";
+  title: string;
+  meta: string;
+  status: "logged" | "pending" | "failed";
+  createdAt: string;
+  key?: string;
+};
+
 export type ChatMessage =
   | {
       id: string;
@@ -23,14 +33,7 @@ export type ChatMessage =
       createdAt: string;
       mode: ComposerMode;
     }
-  | {
-      id: string;
-      kind: "event";
-      title: string;
-      meta: string;
-      status: "pending" | "logged" | "failed";
-      createdAt: string;
-    }
+  | EventMessage
   | {
       id: string;
       kind: "form_block";

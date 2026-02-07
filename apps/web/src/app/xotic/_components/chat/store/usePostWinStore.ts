@@ -1,3 +1,4 @@
+// appendEvent
 "use client";
 
 import { create } from "zustand";
@@ -15,6 +16,7 @@ import type {
   DeliveryItem,
   QuestionnaireStep,
   QuestionnaireAnswers,
+  EventMessage,
 } from "./types";
 
 /* =========================================================
@@ -497,6 +499,40 @@ export const usePostWinStore = create<State>()(
           false,
           "setEventStatus",
         ),
+
+      upsertEvent: (
+        event: Omit<EventMessage, "id" | "kind"> & { key: string },
+      ) =>
+        set((state) => {
+          const index = state.messages.findIndex(
+            (m): m is EventMessage => m.kind === "event" && m.key === event.key,
+          );
+
+          // Not found → append
+          if (index === -1) {
+            return {
+              messages: [
+                ...state.messages,
+                {
+                  id: crypto.randomUUID(),
+                  kind: "event",
+                  ...event,
+                },
+              ],
+            };
+          }
+
+          // Found → update safely
+          const updated = [...state.messages];
+          const existing = updated[index] as EventMessage;
+
+          updated[index] = {
+            ...existing,
+            ...event,
+          };
+
+          return { messages: updated };
+        }),
 
       /* ---------- flow ---------- */
 
