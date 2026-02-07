@@ -81,7 +81,7 @@ export default function Step1Question({ value, onAnswer }: Step1QuestionProps) {
         label="Digital Address"
         placeholder="e.g. GA-123-4567"
         value={digitalAddress}
-        onChange={(e) => setDigitalAddress(e.target.value)}
+        onChangeValue={setDigitalAddress}
       />
 
       {mapData && (
