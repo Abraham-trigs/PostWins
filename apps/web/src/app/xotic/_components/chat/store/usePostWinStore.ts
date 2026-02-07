@@ -281,8 +281,13 @@ export const usePostWinStore = create<State>()(
               [key]: value,
             };
 
-            // STEP 1 → STEP 2 (already implemented)
-            if (state.questionnaire.step === "step1_location") {
+            /* =========================================
+         STEP 1 → STEP 2 (ONLY on location confirm)
+      ========================================= */
+            if (
+              state.questionnaire.step === "step1_location" &&
+              key === "location"
+            ) {
               return {
                 questionnaire: {
                   active: true,
@@ -309,9 +314,11 @@ export const usePostWinStore = create<State>()(
               };
             }
 
-            // ✅ STEP 2 → REVIEW (NEW, ADDITIVE)
-            if (state.questionnaire.step === "step2") {
-              const location = state.questionnaire.answers.location;
+            /* =========================================
+         STEP 2 → REVIEW (ONLY on beneficiary confirm)
+      ========================================= */
+            if (state.questionnaire.step === "step2" && key === "beneficiary") {
+              const location = nextAnswers.location;
 
               return {
                 questionnaire: {
@@ -365,7 +372,9 @@ export const usePostWinStore = create<State>()(
               };
             }
 
-            // default: just store the answer
+            /* =========================================
+         Default: just store the answer
+      ========================================= */
             return {
               questionnaire: {
                 ...state.questionnaire,

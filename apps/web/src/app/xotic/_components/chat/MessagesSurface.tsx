@@ -11,6 +11,8 @@ import Step1Question from "./questionaire/Step1Question";
 import Step2Beneficiary from "./questionaire/Step2Beneficiary";
 import ReviewStep from "./questionaire/ReviewStep";
 
+import { DecisionButton } from "../DecisionButton";
+
 type Action = { id: string; label: string; value: string };
 
 export function MessagesSurface({
@@ -27,17 +29,20 @@ export function MessagesSurface({
         break;
 
       case "confirm": {
-        const ok = window.confirm(
-          "Create this PostWin using the reviewed details?",
-        );
-        if (ok) {
-          store.finalizeQuestionnaire();
+        if (store.replayQueue?.length > 0) {
+          store.appendEvent({
+            title: "Cannot finalize yet",
+            meta: "Pending offline actions must sync first",
+            status: "pending",
+          });
+          return;
         }
+
+        store.finalizeQuestionnaire();
         break;
       }
 
       default:
-        // future-safe no-op
         break;
     }
   };
@@ -230,14 +235,13 @@ function ActionRow({
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((a) => (
-        <button
+        <DecisionButton
           key={a.id}
-          type="button"
-          className="rounded-full border border-line/50 bg-surface-strong px-3 py-2 text-xs font-semibold text-ink hover:bg-surface"
+          variant={a.value === "confirm" ? "primary" : "secondary"}
           onClick={() => onAction(a)}
         >
           {a.label}
-        </button>
+        </DecisionButton>
       ))}
     </div>
   );

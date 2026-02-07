@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import LabeledInput from "./LabeledInput";
+import { DecisionButton } from "../UI/DecisionButton";
 
 const MapContainer = dynamic(
   () => import("react-leaflet").then((mod) => mod.MapContainer),
@@ -38,28 +39,59 @@ export default function Step1Question({ value, onAnswer }: Step1QuestionProps) {
     value?.digitalAddress ?? "",
   );
   const [mapData, setMapData] = useState<any>(value ?? null);
-  const [resolved, setResolved] = useState(false);
+  const [resolved, setResolved] = useState(Boolean(value?.lat && value?.lng));
+  const [loading, setLoading] = useState(false);
 
-  // Resolve GhanaPost → geo
+  /* =========================================================
+     Resolve GhanaPost → geo (debounced, abort-safe)
+  ========================================================= */
+
   useEffect(() => {
-    if (digitalAddress.length < 5) return;
+    if (digitalAddress.trim().length < 5) {
+      setResolved(false);
+      setMapData(null);
+      return;
+    }
 
-    fetch(`/api/ghanaPost?code=${digitalAddress}`)
-      .then((res) => res.json())
-      .then((data) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(async () => {
+      try {
+        setLoading(true);
+
+        const res = await fetch(
+          `/api/intake/resolve-location?code=${encodeURIComponent(
+            digitalAddress.trim(),
+          )}`,
+          { signal: controller.signal },
+        );
+
+        if (!res.ok) throw new Error("Failed to resolve address");
+
+        const data = await res.json();
+
         setMapData(data);
         setResolved(true);
-      })
-      .catch(() => {
-        setResolved(false);
-      });
+      } catch (err) {
+        if ((err as any)?.name !== "AbortError") {
+          setResolved(false);
+          setMapData(null);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [digitalAddress]);
 
   function confirm() {
     if (!resolved || !mapData) return;
 
     onAnswer({
-      digitalAddress,
+      digitalAddress: digitalAddress.trim(),
       lat: mapData.lat,
       lng: mapData.lng,
       bounds: mapData.bounds,
@@ -84,6 +116,16 @@ export default function Step1Question({ value, onAnswer }: Step1QuestionProps) {
         onChangeValue={setDigitalAddress}
       />
 
+      {loading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="text-xs text-ark-navy/60"
+        >
+          Resolving address…
+        </div>
+      )}
+
       {mapData && (
         <div className="h-64 rounded overflow-hidden border">
           <MapContainer
@@ -103,13 +145,14 @@ export default function Step1Question({ value, onAnswer }: Step1QuestionProps) {
         </div>
       )}
 
-      <button
+      <DecisionButton
+        variant="primary"
+        loading={loading}
         disabled={!resolved}
         onClick={confirm}
-        className="rounded bg-ark-navy px-4 py-2 text-white disabled:opacity-50"
       >
         Use this location
-      </button>
+      </DecisionButton>
     </div>
   );
 }
