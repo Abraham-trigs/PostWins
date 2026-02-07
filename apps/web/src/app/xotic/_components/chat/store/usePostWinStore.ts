@@ -14,7 +14,13 @@ import type {
   PostWinIds,
   DeliveryDraft,
   DeliveryItem,
+  QuestionnaireStep,
+  QuestionnaireAnswers,
 } from "./types";
+
+/* =========================================================
+   Helpers
+========================================================= */
 
 function nowIso() {
   return new Date().toISOString();
@@ -29,7 +35,6 @@ function evidenceId(kind: EvidenceKind, file: File) {
 }
 
 function makeTxId(prefix: string) {
-  // stable enough for UI; we keep txId in store for retries
   // @ts-expect-error - crypto.randomUUID exists in modern browsers
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     // @ts-expect-error - crypto typing differs across environments
@@ -37,6 +42,10 @@ function makeTxId(prefix: string) {
   }
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
+
+/* =========================================================
+   Initial state builders
+========================================================= */
 
 const initialDraft: PostWinDraft = {
   narrative: "",
@@ -50,7 +59,7 @@ function makeInitialDeliveryDraft(): DeliveryDraft {
   return {
     location: "",
     items: [{ name: "", qty: 1 }],
-    notes: "", // ✅ NEW
+    notes: "",
   };
 }
 
@@ -59,6 +68,10 @@ function normalizeDeliveryItems(items: DeliveryItem[]) {
     .map((i) => ({ name: i.name.trim(), qty: Number(i.qty) }))
     .filter((i) => i.name.length > 0 && Number.isFinite(i.qty) && i.qty > 0);
 }
+
+/* =========================================================
+   Store state
+========================================================= */
 
 type State = {
   ids: PostWinIds;
@@ -72,16 +85,23 @@ type State = {
   submitting: boolean;
   error?: string;
 
-  // Delivery state
+  // Delivery
   deliveryDraft: DeliveryDraft;
   deliveryTxId: string | null;
+
+  // Questionnaire (authoritative)
+  questionnaire: {
+    active: boolean;
+    step: QuestionnaireStep;
+    answers: QuestionnaireAnswers;
+  };
 
   // Lifecycle
   bootstrapPostWin: () => void;
   attachIds: (ids: { projectId: string; postWinId?: string | null }) => void;
   resetPostWin: () => void;
 
-  // Timeline actions
+  // Timeline
   appendText: (role: ChatRole, text: string, mode?: ComposerMode) => string;
   appendEvent: (payload: {
     title: string;
@@ -90,23 +110,30 @@ type State = {
   }) => string;
   setEventStatus: (id: string, status: "pending" | "logged" | "failed") => void;
 
-  // Flow actions
+  // Flow
   goToStep: (step: IntakeStep) => void;
   pushFormBlock: (step: IntakeStep) => string;
   pushActionRow: (
     actions: Array<{ id: string; label: string; value: string }>,
   ) => string;
 
-  // Draft actions
+  // Draft
   patchDraft: (patch: Partial<PostWinDraft>) => void;
   addEvidence: (kind: EvidenceKind, files: File[]) => void;
   removeEvidence: (evidenceId: string) => void;
 
-  // Delivery draft actions
+  // Delivery draft
   patchDeliveryDraft: (patch: Partial<DeliveryDraft>) => void;
   resetDeliveryDraft: () => void;
 
-  // Composer actions
+  // Questionnaire actions
+  startQuestionnaire: () => void;
+  answerQuestion: <K extends keyof QuestionnaireAnswers>(
+    key: K,
+    value: QuestionnaireAnswers[K],
+  ) => void;
+
+  // Composer
   setComposerMode: (mode: ComposerMode) => void;
   setComposerText: (text: string) => void;
   clearComposer: () => void;
@@ -137,6 +164,10 @@ type State = {
   }) => Promise<void>;
 };
 
+/* =========================================================
+   Store
+========================================================= */
+
 export const usePostWinStore = create<State>()(
   devtools(
     (set, get) => ({
@@ -155,48 +186,44 @@ export const usePostWinStore = create<State>()(
       deliveryDraft: makeInitialDeliveryDraft(),
       deliveryTxId: null,
 
-      bootstrapPostWin: () => {
-        set(
-          {
-            ids: { projectId: null, postWinId: null },
-            messages: [],
-            draft: initialDraft,
-            currentStep: "postwin_narrative",
-            composerMode: "record",
-            composerText: "",
-            submitting: false,
-            error: undefined,
+      questionnaire: {
+        active: false,
+        step: "step1_location",
+        answers: {},
+      },
 
-            deliveryDraft: makeInitialDeliveryDraft(),
-            deliveryTxId: null,
-          },
-          false,
-          "bootstrapPostWin",
-        );
+      /* ---------- lifecycle ---------- */
 
+      bootstrapPostWin: () =>
         set(
-          {
+          (state) => ({
+            ...state,
             messages: [
+              ...state.messages,
               {
-                id: uid("m"),
+                id: crypto.randomUUID(),
                 kind: "text",
                 role: "system",
-                text: "Let’s record a PostWin. What happened?",
-                createdAt: nowIso(),
                 mode: "record",
+                text: "Let’s record a PostWin. First, where is it located?",
+                createdAt: nowIso(),
               },
               {
-                id: uid("m"),
+                id: crypto.randomUUID(),
                 kind: "form_block",
-                step: "postwin_narrative",
+                step: "step1_location",
                 createdAt: nowIso(),
               },
             ],
-          },
+            questionnaire: {
+              active: true,
+              step: "step1_location",
+              answers: {},
+            },
+          }),
           false,
-          "bootstrapPostWin:seed",
-        );
-      },
+          "bootstrapPostWin",
+        ),
 
       attachIds: ({ projectId, postWinId = null }) =>
         set({ ids: { projectId, postWinId } }, false, "attachIds"),
@@ -212,13 +239,53 @@ export const usePostWinStore = create<State>()(
             composerText: "",
             submitting: false,
             error: undefined,
-
             deliveryDraft: makeInitialDeliveryDraft(),
             deliveryTxId: null,
+            questionnaire: {
+              active: false,
+              step: "step1_location",
+              answers: {},
+            },
           },
           false,
           "resetPostWin",
         ),
+
+      /* ---------- questionnaire ---------- */
+
+      startQuestionnaire: () =>
+        set(
+          {
+            questionnaire: {
+              active: true,
+              step: "step1_location",
+              answers: {},
+            },
+          },
+          false,
+          "questionnaire:start",
+        ),
+
+      answerQuestion: (key, value) =>
+        set(
+          (state) => ({
+            questionnaire: {
+              ...state.questionnaire,
+              answers: {
+                ...state.questionnaire.answers,
+                [key]: value,
+              },
+              step:
+                state.questionnaire.step === "step1_location"
+                  ? "step2"
+                  : state.questionnaire.step,
+            },
+          }),
+          false,
+          "questionnaire:answer",
+        ),
+
+      /* ---------- timeline ---------- */
 
       appendText: (role, text, mode) => {
         const id = uid("m");
@@ -273,6 +340,8 @@ export const usePostWinStore = create<State>()(
           "setEventStatus",
         ),
 
+      /* ---------- flow ---------- */
+
       goToStep: (step) => set({ currentStep: step }, false, "goToStep"),
 
       pushFormBlock: (step) => {
@@ -305,6 +374,8 @@ export const usePostWinStore = create<State>()(
         );
         return id;
       },
+
+      /* ---------- draft ---------- */
 
       patchDraft: (patch) =>
         set({ draft: { ...get().draft, ...patch } }, false, "patchDraft"),
@@ -349,6 +420,8 @@ export const usePostWinStore = create<State>()(
         );
       },
 
+      /* ---------- delivery ---------- */
+
       patchDeliveryDraft: (patch) =>
         set(
           { deliveryDraft: { ...get().deliveryDraft, ...patch } },
@@ -363,11 +436,15 @@ export const usePostWinStore = create<State>()(
           "resetDeliveryDraft",
         ),
 
+      /* ---------- composer ---------- */
+
       setComposerMode: (mode) =>
         set({ composerMode: mode }, false, "setComposerMode"),
       setComposerText: (text) =>
         set({ composerText: text }, false, "setComposerText"),
       clearComposer: () => set({ composerText: "" }, false, "clearComposer"),
+
+      /* ---------- submissions ---------- */
 
       submitBootstrap: async ({ submit }) => {
         const { draft } = get();
@@ -435,7 +512,7 @@ export const usePostWinStore = create<State>()(
 
         const location = deliveryDraft.location.trim();
         const items = normalizeDeliveryItems(deliveryDraft.items);
-        const notes = deliveryDraft.notes?.trim() || undefined; // ✅ NEW
+        const notes = deliveryDraft.notes?.trim() || undefined;
 
         if (!location) {
           set({ error: "Missing location." }, false, "delivery:badInput");
@@ -451,7 +528,6 @@ export const usePostWinStore = create<State>()(
           return;
         }
 
-        // txId must be stable across retries for the same logical action
         const txId = deliveryTxId ?? makeTxId("delivery");
         if (!deliveryTxId)
           set({ deliveryTxId: txId }, false, "delivery:setTxId");
@@ -459,10 +535,8 @@ export const usePostWinStore = create<State>()(
         set({ submitting: true, error: undefined }, false, "delivery:start");
 
         const deliveryId =
-          // @ts-expect-error - crypto.randomUUID exists in modern browsers
           typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? // @ts-expect-error - crypto typing differs across environments
-              `delivery_${crypto.randomUUID()}`
+            ? `delivery_${crypto.randomUUID()}`
             : `delivery_${Date.now()}`;
 
         const occurredAt = nowIso();
@@ -481,7 +555,7 @@ export const usePostWinStore = create<State>()(
               occurredAt,
               location,
               items,
-              notes, // ✅ NEW
+              notes,
             },
             { transactionId: txId },
           );
@@ -495,7 +569,6 @@ export const usePostWinStore = create<State>()(
             "verify",
           );
 
-          // ✅ reset txId so the next delivery uses a new idempotency key
           set(
             {
               deliveryTxId: null,

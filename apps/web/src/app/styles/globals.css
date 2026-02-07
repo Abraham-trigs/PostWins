@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 /* ==========================================================================
    Root Theme Tokens (NGO palette)
@@ -6,15 +7,15 @@
    ========================================================================== */
 :root {
   /* Core surfaces */
-  --surface-primary: #05082c;     /* dark teal – main surface */
-  --surface-secondary: #05af2c;   /* deep green – alt panels / cards */
+  --surface-primary: #05082c; /* dark teal – main surface */
+  --surface-secondary: #05af2c; /* deep green – alt panels / cards */
 
   /* Brand & action */
-  --brand-primary: #57a07e;       /* main brand / primary buttons */
-  --brand-link: #196fd1;          /* links, focus rings, info */
+  --brand-primary: #57a07e; /* main brand / primary buttons */
+  --brand-link: #196fd1; /* links, focus rings, info */
 
   /* Accents */
-  --accent-soft: #BBCFCA;         /* subtle highlights only */
+  --accent-soft: #bbcfca; /* subtle highlights only */
 
   /* Feedback */
   --state-danger: #ff0000;
@@ -43,7 +44,11 @@
   --color-line: color-mix(in srgb, var(--accent-soft) 26%, transparent);
 
   --surface: color-mix(in srgb, var(--surface-secondary) 16%, transparent);
-  --surface-strong: color-mix(in srgb, var(--surface-secondary) 28%, transparent);
+  --surface-strong: color-mix(
+    in srgb,
+    var(--surface-secondary) 28%,
+    transparent
+  );
   --surface-muted: color-mix(in srgb, var(--accent-soft) 22%, transparent);
 
   --border: var(--color-line);
@@ -103,18 +108,38 @@
 /* ==========================================================================
    Utilities (UNCHANGED – layout depends on these)
    ========================================================================== */
-@utility bg-ink { background: var(--color-ink); }
-@utility bg-ocean { background: var(--color-ocean); }
-@utility bg-red { background: var(--color-red); }
-@utility bg-paper { background: var(--color-paper); }
-@utility bg-mist { background: var(--color-mist); }
+@utility bg-ink {
+  background: var(--color-ink);
+}
+@utility bg-ocean {
+  background: var(--color-ocean);
+}
+@utility bg-red {
+  background: var(--color-red);
+}
+@utility bg-paper {
+  background: var(--color-paper);
+}
+@utility bg-mist {
+  background: var(--color-mist);
+}
 
-@utility text-ink { color: var(--color-ink); }
-@utility text-ocean { color: var(--color-ocean); }
-@utility text-red { color: var(--color-red); }
+@utility text-ink {
+  color: var(--color-ink);
+}
+@utility text-ocean {
+  color: var(--color-ocean);
+}
+@utility text-red {
+  color: var(--color-red);
+}
 
-@utility border-ocean { border-color: var(--color-ocean); }
-@utility border-red { border-color: var(--color-red); }
+@utility border-ocean {
+  border-color: var(--color-ocean);
+}
+@utility border-red {
+  border-color: var(--color-red);
+}
 
 /* ==========================================================================
    Tailwind Theme Mapping
@@ -146,16 +171,36 @@
   --radius-lg: var(--radius-lg);
 
   @keyframes ark-gradient {
-    0%   { background-position: 0% 50%; }
-    12%  { background-position: 85% 15%; }
-    24%  { background-position: 15% 85%; }
-    36%  { background-position: 95% 40%; }
-    48%  { background-position: 5% 60%; }
-    60%  { background-position: 50% 95%; }
-    72%  { background-position: 40% 5%; }
-    84%  { background-position: 90% 80%; }
-    92%  { background-position: 10% 10%; }
-    100% { background-position: 0% 50%; }
+    0% {
+      background-position: 0% 50%;
+    }
+    12% {
+      background-position: 85% 15%;
+    }
+    24% {
+      background-position: 15% 85%;
+    }
+    36% {
+      background-position: 95% 40%;
+    }
+    48% {
+      background-position: 5% 60%;
+    }
+    60% {
+      background-position: 50% 95%;
+    }
+    72% {
+      background-position: 40% 5%;
+    }
+    84% {
+      background-position: 90% 80%;
+    }
+    92% {
+      background-position: 10% 10%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
   }
 }
 

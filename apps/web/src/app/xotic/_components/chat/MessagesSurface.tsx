@@ -1,9 +1,13 @@
-// xotic/_components/chat/MessagesSurface.tsx
 "use client";
 
 import React from "react";
 import { Activity } from "lucide-react";
+
 import type { ChatMessage, ComposerMode } from "./store/types";
+import { usePostWinStore } from "./store/usePostWinStore";
+
+// ⬇️ Step 1 questionnaire UI
+import Step1Question from "../.././_components/chat/questionaire/Step1Question";
 
 export function MessagesSurface({
   messages = [],
@@ -51,21 +55,24 @@ function MessageRow({
   switch (msg.kind) {
     case "text":
       return <TextBubble role={msg.role} text={msg.text} mode={msg.mode} />;
+
     case "event":
       return (
         <EventCard title={msg.title} meta={msg.meta} status={msg.status} />
       );
+
     case "form_block":
       return <FormBlock step={msg.step} />;
+
     case "action_row":
       return <ActionRow actions={msg.actions} onAction={onAction} />;
+
     default:
       return assertNever(msg);
   }
 }
 
-function assertNever(x: never) {
-  // If a new ChatMessage.kind is added and not handled above, TS errors here.
+function assertNever(_x: never) {
   return null;
 }
 
@@ -128,19 +135,41 @@ function EventCard({
   );
 }
 
+/* =========================================================
+   In-chat form / questionnaire rendering
+========================================================= */
+
 function FormBlock({
   step,
 }: {
   step: Extract<ChatMessage, { kind: "form_block" }>["step"];
 }) {
-  return (
-    <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
-      <div className="text-sm font-semibold text-ink">Form: {step}</div>
-      <div className="text-xs text-ink/65 mt-1">
-        (This is where the visible in-chat form goes.)
-      </div>
-    </div>
-  );
+  const { questionnaire, answerQuestion } = usePostWinStore();
+
+  switch (step) {
+    case "step1_location":
+      return (
+        <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
+          <Step1Question
+            value={questionnaire.answers.location}
+            onAnswer={(value) => {
+              answerQuestion("location", value);
+            }}
+          />
+        </div>
+      );
+
+    // ⬇️ legacy / future steps fall through for now
+    default:
+      return (
+        <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
+          <div className="text-sm font-semibold text-ink">Form: {step}</div>
+          <div className="text-xs text-ink/65 mt-1">
+            (Renderer not implemented yet.)
+          </div>
+        </div>
+      );
+  }
 }
 
 function ActionRow({

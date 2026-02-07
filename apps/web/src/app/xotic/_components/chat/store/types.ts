@@ -1,8 +1,7 @@
-// app/components/chat/store/types.ts
-
 export type ChatRole = "user" | "system";
 
 export type ComposerMode = "record" | "followup" | "verify" | "delivery";
+
 export type EvidenceKind = "image" | "video" | "document" | "audio";
 
 export type EvidenceFile = {
@@ -10,6 +9,10 @@ export type EvidenceFile = {
   kind: EvidenceKind;
   file: File;
 };
+
+/* =========================================================
+   Chat Messages
+========================================================= */
 
 export type ChatMessage =
   | {
@@ -31,12 +34,19 @@ export type ChatMessage =
   | {
       id: string;
       kind: "form_block";
-      step:
+      /**
+       * `step` is the single source of truth
+       * for which in-chat form/questionnaire UI to render.
+       */
+      step: // 🔁 legacy / existing intake steps
         | "postwin_narrative"
         | "beneficiary"
         | "category_location"
         | "evidence"
-        | "review";
+        | "review"
+
+        // 🆕 questionnaire-driven steps (chat-native)
+        | "step1_location";
       createdAt: string;
     }
   | {
@@ -45,6 +55,10 @@ export type ChatMessage =
       actions: Array<{ id: string; label: string; value: string }>;
       createdAt: string;
     };
+
+/* =========================================================
+   Drafts (local UI state, not backend truth)
+========================================================= */
 
 export type PostWinDraft = {
   narrative: string;
@@ -57,11 +71,9 @@ export type PostWinDraft = {
   language?: string;
 };
 
-/**
- * ✅ NEW — Delivery input contract
- * This replaces the fake:
- *   "Unknown" + [{ name: "Delivery", qty: 1 }]
- */
+/* =========================================================
+   Delivery
+========================================================= */
 
 export type DeliveryItem = {
   name: string;
@@ -74,14 +86,34 @@ export type DeliveryDraft = {
   notes?: string;
 };
 
-/**
- * Backend truth (Option A):
- * - projectId = UI "PostWin" container id (timeline root)
- * - postWinId = verification/audit root (optional but supported)
- */
+/* =========================================================
+   Questionnaire (chat-native intake)
+========================================================= */
+
+export type QuestionnaireStep = "step1_location" | "step2" | "review" | "done";
+
+export type LocationAnswer = {
+  digitalAddress: string;
+  lat?: number;
+  lng?: number;
+  bounds?: any;
+};
+
+export type QuestionnaireAnswers = {
+  location?: LocationAnswer;
+};
+
+/* =========================================================
+   Backend identifiers (resolved later)
+========================================================= */
+
 export type PostWinIds = {
   projectId: string | null;
   postWinId: string | null;
 };
 
-export type IntakeStep = (ChatMessage & { kind: "form_block" })["step"];
+/**
+ * Utility: all possible in-chat intake steps
+ * (keeps renderers type-safe)
+ */
+export type IntakeStep = Extract<ChatMessage, { kind: "form_block" }>["step"];
