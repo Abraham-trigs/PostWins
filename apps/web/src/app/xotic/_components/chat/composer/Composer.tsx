@@ -14,6 +14,9 @@ import { useAttachmentPicker } from "./useAttachmentPicker";
 // ✅ API
 import { bootstrapIntake } from "../../api/intake";
 
+// ✅ Reusable decision button
+import { DecisionButton } from "../UI/DecisionButton";
+
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {
     acc[e.kind] = (acc[e.kind] ?? 0) + 1;
@@ -59,7 +62,6 @@ export function Composer() {
   const { placeholder, modeLabel } = copy;
 
   const isReview = questionnaire.active && questionnaire.step === "review";
-
   const composerLocked = questionnaire.active && !isReview;
 
   const canSubmit = text.trim().length > 0 || evidence.length > 0;
@@ -112,23 +114,23 @@ export function Composer() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <DecisionButton
+            variant="secondary"
+            disabled={submitting}
             onClick={() =>
               usePostWinStore.getState().goToQuestionnaireStep("step1_location")
             }
-            className="rounded-full px-4 py-2 text-xs font-semibold border border-line/50 bg-surface hover:bg-surface-strong"
           >
             Edit intake
-          </button>
+          </DecisionButton>
 
-          <button
-            type="button"
+          <DecisionButton
+            variant="primary"
+            loading={submitting}
             onClick={() => usePostWinStore.getState().finalizeQuestionnaire()}
-            className="rounded-full px-4 py-2 text-xs font-semibold bg-red text-white"
           >
             Confirm & Create
-          </button>
+          </DecisionButton>
         </div>
       </footer>
     );
