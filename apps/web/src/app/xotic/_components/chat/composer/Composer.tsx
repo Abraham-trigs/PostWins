@@ -1,27 +1,18 @@
 "use client";
 
 import { useId, useMemo } from "react";
-import { Plus, Trash2, Send } from "lucide-react";
 import { usePostWinStore } from "../store/usePostWinStore";
 import type { EvidenceKind } from "../store/types";
 
 import { ModeTab } from "../ModeTab";
-import { MenuItem } from "../MenuItem";
 import { AttachmentChip } from "../AttachmentChip";
-import {
-  IconAudio,
-  IconDocument,
-  IconImage,
-  IconPaperclip,
-  IconSend,
-  IconVideo,
-} from "../icons";
+import { IconPaperclip, IconSend } from "../icons";
 
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
 
 // ✅ API
-import { bootstrapIntake, deliveryIntake } from "../../api/intake";
+import { bootstrapIntake } from "../../api/intake";
 
 function summarizeEvidence(evidence: Array<{ kind: string }>) {
   const counts = evidence.reduce<Record<string, number>>((acc, e) => {
@@ -41,44 +32,37 @@ export function Composer() {
   const evidence = usePostWinStore((s) => s.draft.evidence ?? []);
   const submitting = usePostWinStore((s) => s.submitting);
 
-  const questionnaireActive = usePostWinStore((s) => s.questionnaire.active);
+  const questionnaire = usePostWinStore((s) => s.questionnaire);
 
   const setComposerMode = usePostWinStore((s) => s.setComposerMode);
   const setComposerText = usePostWinStore((s) => s.setComposerText);
   const clearComposer = usePostWinStore((s) => s.clearComposer);
 
   const addEvidence = usePostWinStore((s) => s.addEvidence);
-  const removeEvidence = usePostWinStore((s) => s.removeEvidence);
-
-  const appendText = usePostWinStore((s) => s.appendText);
   const appendEvent = usePostWinStore((s) => s.appendEvent);
+  const appendText = usePostWinStore((s) => s.appendText);
   const patchDraft = usePostWinStore((s) => s.patchDraft);
 
   const submitBootstrap = usePostWinStore((s) => s.submitBootstrap);
-
-  // ✅ Delivery wiring
-  const submitDelivery = usePostWinStore((s) => s.submitDelivery);
-  const deliveryDraft = usePostWinStore((s) => s.deliveryDraft);
-  const patchDeliveryDraft = usePostWinStore((s) => s.patchDeliveryDraft);
 
   const {
     attachOpen,
     setAttachOpen,
     attachWrapRef,
-    triggerAttach,
     imageInputRef,
     videoInputRef,
     docInputRef,
     audioInputRef,
   } = useAttachmentPicker();
 
-  const canSubmit = text.trim().length > 0 || evidence.length > 0;
-
   const copy = useMemo(() => getModeCopy(mode), [mode]);
-  const { placeholder, primaryLabel, modeLabel } = copy;
+  const { placeholder, modeLabel } = copy;
 
-  // 🔒 Composer lock rule
-  const composerLocked = questionnaireActive && mode !== "delivery";
+  const isReview = questionnaire.active && questionnaire.step === "review";
+
+  const composerLocked = questionnaire.active && !isReview;
+
+  const canSubmit = text.trim().length > 0 || evidence.length > 0;
 
   const onPicked = (kind: EvidenceKind, files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -86,13 +70,9 @@ export function Composer() {
     addEvidence(kind, Array.from(files));
     setAttachOpen(false);
 
-    const nextEvidence = [
-      ...evidence,
-      ...Array.from(files).map(() => ({ kind })),
-    ];
     appendEvent({
       title: "Evidence attached",
-      meta: summarizeEvidence(nextEvidence),
+      meta: summarizeEvidence(Array.from(files).map(() => ({ kind }))),
       status: "logged",
     });
   };
@@ -114,17 +94,49 @@ export function Composer() {
     clearComposer();
   };
 
-  const isDelivery = mode === "delivery";
-  const locationError =
-    isDelivery && deliveryDraft.location.trim().length === 0;
+  /* =========================================================
+     REVIEW ACTION BAR
+  ========================================================= */
 
-  const hasValidItem =
-    isDelivery &&
-    deliveryDraft.items.some(
-      (i) => i.name.trim().length > 0 && Number(i.qty) > 0,
+  if (isReview) {
+    return (
+      <footer
+        aria-label="Review actions"
+        className="h-[var(--xotic-composer-h)] px-[var(--xotic-pad-6)] flex items-center justify-between bg-paper border-t border-line/50"
+      >
+        <div>
+          <div className="text-sm font-semibold text-ink">Review complete</div>
+          <div className="text-xs text-ink/60">
+            You can still edit the intake before creating this PostWin.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              usePostWinStore.getState().goToQuestionnaireStep("step1_location")
+            }
+            className="rounded-full px-4 py-2 text-xs font-semibold border border-line/50 bg-surface hover:bg-surface-strong"
+          >
+            Edit intake
+          </button>
+
+          <button
+            type="button"
+            onClick={() => usePostWinStore.getState().finalizeQuestionnaire()}
+            className="rounded-full px-4 py-2 text-xs font-semibold bg-red text-white"
+          >
+            Confirm & Create
+          </button>
+        </div>
+      </footer>
     );
+  }
 
-  const canSendDelivery = isDelivery && !locationError && hasValidItem;
+  /* =========================================================
+     NORMAL COMPOSER
+  ========================================================= */
 
   return (
     <footer
@@ -164,11 +176,7 @@ export function Composer() {
             type="button"
             disabled={composerLocked}
             onClick={() => !composerLocked && setAttachOpen((v) => !v)}
-            className={`absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full grid place-items-center ${
-              composerLocked
-                ? "text-ink/40 cursor-not-allowed"
-                : "text-ink/80 hover:bg-surface"
-            }`}
+            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full grid place-items-center text-ink/80 hover:bg-surface"
           >
             <IconPaperclip />
           </button>
@@ -187,11 +195,7 @@ export function Composer() {
               if (composerLocked) return;
               if (e.key === "Enter" && !attachOpen) handleSubmit();
             }}
-            className={`w-full h-10 rounded-full pl-12 pr-4 text-sm border border-line/50 ${
-              composerLocked
-                ? "bg-surface-muted text-ink/50"
-                : "bg-[#6b8d87] text-paper placeholder:text-paper/60"
-            }`}
+            className="w-full h-10 rounded-full pl-12 pr-4 text-sm border border-line/50 bg-[#6b8d87] text-paper placeholder:text-paper/60"
           />
         </div>
 
@@ -202,21 +206,18 @@ export function Composer() {
         )}
       </div>
 
-      {/* Send Button */}
-      {!isDelivery && (
-        <button
-          type="button"
-          disabled={composerLocked || !canSubmit || submitting}
-          onClick={handleSubmit}
-          className={`h-10 w-10 rounded-full grid place-items-center ${
-            !composerLocked && canSubmit && !submitting
-              ? "bg-red text-white"
-              : "bg-surface-strong text-ink/60 cursor-not-allowed"
-          }`}
-        >
-          <IconSend />
-        </button>
-      )}
+      <button
+        type="button"
+        disabled={composerLocked || !canSubmit || submitting}
+        onClick={handleSubmit}
+        className={`h-10 w-10 rounded-full grid place-items-center ${
+          !composerLocked && canSubmit && !submitting
+            ? "bg-red text-white"
+            : "bg-surface-strong text-ink/60 cursor-not-allowed"
+        }`}
+      >
+        <IconSend />
+      </button>
 
       {/* Hidden inputs */}
       <input
