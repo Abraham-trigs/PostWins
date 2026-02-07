@@ -28,23 +28,39 @@ export function MessagesSurface({
         store.goToQuestionnaireStep("step1_location");
         break;
 
-      case "confirm":
+      case "confirm": {
+        const hasPendingSync = messages.some(
+          (m) =>
+            m.kind === "event" &&
+            m.title === "Sync in progress" &&
+            m.status === "pending",
+        );
+
         if (store.replayQueue?.length > 0) {
-          store.appendEvent({
-            title: "Sync in progress",
-            meta: "Offline actions are being replayed",
-            status: "pending",
-          });
+          if (!hasPendingSync) {
+            store.appendEvent({
+              title: "Sync in progress",
+              meta: "Offline actions are being replayed",
+              status: "pending",
+            });
+          }
           break;
         }
 
-        store.appendEvent({
-          title: "Sync complete",
-          meta: "All offline actions have been applied",
-          status: "logged",
-        });
+        if (hasPendingSync) {
+          store.appendEvent({
+            title: "Sync complete",
+            meta: "All offline actions have been applied",
+            status: "logged",
+          });
+        }
 
         store.finalizeQuestionnaire();
+        break;
+      }
+
+      default:
+        // future-safe no-op
         break;
     }
   };
