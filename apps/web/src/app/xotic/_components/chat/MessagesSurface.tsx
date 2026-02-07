@@ -9,6 +9,7 @@ import { usePostWinStore } from "./store/usePostWinStore";
 // ⬇️ Questionnaire UIs
 import Step1Question from "../.././_components/chat/questionaire/Step1Question";
 import Step2Beneficiary from "../.././_components/chat/questionaire/Step2Beneficiary";
+import ReviewStep from "../questionnaire/ReviewStep";
 
 export function MessagesSurface({
   messages = [],
@@ -69,12 +70,8 @@ function MessageRow({
       return <ActionRow actions={msg.actions} onAction={onAction} />;
 
     default:
-      return assertNever(msg);
+      return null;
   }
-}
-
-function assertNever(_x: never) {
-  return null;
 }
 
 function TextBubble({
@@ -167,6 +164,23 @@ function FormBlock({
             value={questionnaire.answers.beneficiary}
             onAnswer={(value) => {
               answerQuestion("beneficiary", value);
+            }}
+          />
+        </div>
+      );
+
+    case "review":
+      return (
+        <div className="rounded-[var(--xotic-radius)] border border-line/50 bg-surface p-4">
+          <ReviewStep
+            answers={questionnaire.answers}
+            onEdit={() => {
+              usePostWinStore
+                .getState()
+                .goToQuestionnaireStep("step1_location");
+            }}
+            onConfirm={() => {
+              usePostWinStore.getState().finalizeQuestionnaire();
             }}
           />
         </div>
