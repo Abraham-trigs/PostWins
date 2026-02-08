@@ -1,13 +1,37 @@
-"use client";
+import type {
+  CaseLifecycle,
+  CaseStatus,
+  RoutingOutcome,
+  CaseType,
+  AccessScope,
+} from "@prisma/client";
 
+/**
+ * Case list item returned by the API.
+ *
+ * IMPORTANT:
+ * - lifecycle is AUTHORITATIVE
+ * - status and routingOutcome are advisory / derived
+ * - UI must not infer lifecycle from status
+ */
 export type CaseListItem = {
   id: string;
-  status: string;
-  routingStatus: string;
-  type: string;
-  scope: string;
+
+  /** ✅ Authoritative */
+  lifecycle: CaseLifecycle;
+
+  /** ⚠️ Advisory (UI / ops only) */
+  status: CaseStatus;
+
+  /** ⚠️ Advisory decision metadata */
+  routingOutcome: RoutingOutcome;
+
+  type: CaseType;
+  scope: AccessScope;
+
   sdgGoal: string | null;
   summary: string | null;
+
   createdAt: string;
   updatedAt: string;
 };
@@ -38,14 +62,14 @@ async function postaGet<T>(path: string): Promise<T> {
     headers: {
       "X-Tenant-Id": tenantId,
     },
-    // ✅ avoid stale case list in dev/prod when called from client
+    // avoid stale case list in dev/prod when called from client
     cache: "no-store",
   });
 
-  const data = (await res.json()) as any;
+  const data = (await res.json()) as unknown;
 
   if (!res.ok) {
-    throw new Error(data?.error || "Request failed");
+    throw new Error((data as any)?.error ?? "Request failed");
   }
 
   return data as T;

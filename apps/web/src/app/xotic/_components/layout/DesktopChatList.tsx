@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useCallback, useState } from "react";
 import { Plus, Search, RotateCw } from "lucide-react";
 import { usePostWinStore } from "../chat/store/usePostWinStore";
-import { listCases, type CaseListItem } from "../api/cases";
+import { listCases, type CaseListItem } from "../../../lib/api/cases.api";
 
 type Props = {
   activeId: string | null;

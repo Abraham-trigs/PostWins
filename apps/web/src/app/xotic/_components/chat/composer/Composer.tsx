@@ -12,7 +12,7 @@ import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
 
 // ✅ API
-import { bootstrapIntake } from "../../api/intake";
+import { bootstrapIntake } from "../../../../lib/api/intake";
 
 // ✅ Reusable decision button
 import { DecisionButton } from "../UI/DecisionButton";
