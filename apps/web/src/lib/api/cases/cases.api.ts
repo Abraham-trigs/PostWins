@@ -1,5 +1,3 @@
-"use client";
-
 import type {
   CaseLifecycle,
   CaseStatus,
@@ -36,6 +34,15 @@ export type CaseListItem = {
 
   createdAt: string;
   updatedAt: string;
+};
+
+/**
+ * UI-facing view model.
+ * Pure rename for clarity — no data changes.
+ */
+export type CaseListItemView = CaseListItem & {
+  uiStatus: CaseStatus;
+  decisionOutcome: RoutingOutcome;
 };
 
 function getTenantId(): string {
@@ -79,7 +86,23 @@ async function postaGet<T>(path: string): Promise<T> {
 
 export async function listCases(): Promise<{
   ok: true;
-  cases: CaseListItem[];
+  cases: CaseListItemView[];
 }> {
-  return postaGet<{ ok: true; cases: CaseListItem[] }>("/api/cases");
+  const res = await postaGet<{ ok: true; cases: CaseListItem[] }>("/api/cases");
+
+  const cases = res.cases.map((c) => {
+    // ⚠️ advisory / presentation-only state
+    const uiStatus = c.status;
+
+    // ⚠️ decision metadata
+    const decisionOutcome = c.routingOutcome;
+
+    return {
+      ...c,
+      uiStatus,
+      decisionOutcome,
+    };
+  });
+
+  return { ok: true, cases };
 }
