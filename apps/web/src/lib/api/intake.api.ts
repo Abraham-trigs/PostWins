@@ -3,7 +3,7 @@
 import type {
   PostWinDraft,
   DeliveryDraft,
-} from "../../xotic/_components/chat/store/types";
+} from "../../app/xotic/_components/chat/store/types";
 
 // 🧠 Offline infrastructure
 import { enqueue } from "@/lib/offline/queue";
