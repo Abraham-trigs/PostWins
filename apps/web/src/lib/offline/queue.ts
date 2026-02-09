@@ -1,4 +1,7 @@
 // apps/web/src/lib/offline/queue.ts
+// NOTE:
+// Offline queue is transport-only.
+// Must not infer, modify, or advance taskId or lifecycle.
 
 export type OfflineMutation = {
   id: string;

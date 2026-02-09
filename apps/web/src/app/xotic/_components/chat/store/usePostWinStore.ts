@@ -1,5 +1,14 @@
-// appendEvent
+// apps/web/src/app/xotic/_components/chat/store/usePostWinStore.ts
 "use client";
+
+/**
+ * IMPORTANT BOUNDARY (Phase 1.5)
+ * ------------------------------------------------------------------
+ * - This store manages UI flow, drafts, and transport events ONLY.
+ * - It MUST NOT store, infer, or advance backend task state.
+ * - TaskId / Case.currentTask live exclusively in the backend domain.
+ * - Any "step" here is a PRESENTATION STEP, not a domain task.
+ */
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
@@ -36,9 +45,7 @@ function evidenceId(kind: EvidenceKind, file: File) {
 }
 
 function makeTxId(prefix: string) {
-  // @ts-expect-error
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    // @ts-expect-error
     return `${prefix}_${crypto.randomUUID()}`;
   }
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -90,19 +97,21 @@ type State = {
   deliveryDraft: DeliveryDraft;
   deliveryTxId: string | null;
 
-  // Questionnaire (authoritative)
+  // Questionnaire (UI-authoritative only)
   questionnaire: {
     active: boolean;
     step: QuestionnaireStep;
     answers: QuestionnaireAnswers;
   };
 
-  // Lifecycle
+  /* ---------- lifecycle ---------- */
+
   bootstrapPostWin: () => void;
   attachIds: (ids: { projectId: string; postWinId?: string | null }) => void;
   resetPostWin: () => void;
 
-  // Timeline
+  /* ---------- timeline ---------- */
+
   appendText: (role: ChatRole, text: string, mode?: ComposerMode) => string;
   appendEvent: (payload: {
     title: string;
@@ -110,38 +119,46 @@ type State = {
     status?: "pending" | "logged" | "failed";
   }) => string;
   setEventStatus: (id: string, status: "pending" | "logged" | "failed") => void;
+  upsertEvent: (
+    event: Omit<EventMessage, "id" | "kind"> & { key: string },
+  ) => void;
 
-  // Flow
+  /* ---------- flow ---------- */
+
   goToStep: (step: IntakeStep) => void;
   pushFormBlock: (step: IntakeStep) => string;
   pushActionRow: (
     actions: Array<{ id: string; label: string; value: string }>,
   ) => string;
 
-  // Draft
+  /* ---------- draft ---------- */
+
   patchDraft: (patch: Partial<PostWinDraft>) => void;
   addEvidence: (kind: EvidenceKind, files: File[]) => void;
   removeEvidence: (evidenceId: string) => void;
 
-  // Delivery draft
+  /* ---------- delivery ---------- */
+
   patchDeliveryDraft: (patch: Partial<DeliveryDraft>) => void;
   resetDeliveryDraft: () => void;
 
-  // Questionnaire actions
+  /* ---------- questionnaire ---------- */
+
   startQuestionnaire: () => void;
   answerQuestion: <K extends keyof QuestionnaireAnswers>(
     key: K,
     value: QuestionnaireAnswers[K],
   ) => void;
-
-  // ✅ ADDITIVE
   goToQuestionnaireStep: (step: QuestionnaireStep) => void;
   finalizeQuestionnaire: () => void;
 
-  // Composer
+  /* ---------- composer ---------- */
+
   setComposerMode: (mode: ComposerMode) => void;
   setComposerText: (text: string) => void;
   clearComposer: () => void;
+
+  /* ---------- submissions ---------- */
 
   submitBootstrap: (opts: {
     submit: (
@@ -177,7 +194,6 @@ export const usePostWinStore = create<State>()(
   devtools(
     (set, get) => ({
       ids: { projectId: null, postWinId: null },
-
       messages: [],
       draft: initialDraft,
       currentStep: initialStep,
@@ -271,21 +287,15 @@ export const usePostWinStore = create<State>()(
           "questionnaire:start",
         ),
 
-      // Step 1 → Step 2 → Review (additive)
-      // ✅ ADDITIVE: advance to Review step after beneficiary
       answerQuestion: (key, value) =>
         set(
           (state) => {
             const now = nowIso();
-
             const nextAnswers = {
               ...state.questionnaire.answers,
               [key]: value,
             };
 
-            /* =========================================
-         STEP 1 → STEP 2 (ONLY on location confirm)
-      ========================================= */
             if (
               state.questionnaire.step === "step1_location" &&
               key === "location"
@@ -316,9 +326,6 @@ export const usePostWinStore = create<State>()(
               };
             }
 
-            /* =========================================
-         STEP 2 → REVIEW (ONLY on beneficiary confirm)
-      ========================================= */
             if (state.questionnaire.step === "step2" && key === "beneficiary") {
               const location = nextAnswers.location;
 
@@ -374,9 +381,6 @@ export const usePostWinStore = create<State>()(
               };
             }
 
-            /* =========================================
-         Default: just store the answer
-      ========================================= */
             return {
               questionnaire: {
                 ...state.questionnaire,
@@ -387,7 +391,7 @@ export const usePostWinStore = create<State>()(
           false,
           "questionnaire:answer",
         ),
-      // ✅ ADDITIVE: edit from review
+
       goToQuestionnaireStep: (step) =>
         set(
           (state) => ({
@@ -409,7 +413,6 @@ export const usePostWinStore = create<State>()(
           "questionnaire:goto",
         ),
 
-      // ✅ ADDITIVE: finalize review
       finalizeQuestionnaire: () =>
         set(
           (state) => {
@@ -499,15 +502,12 @@ export const usePostWinStore = create<State>()(
           "setEventStatus",
         ),
 
-      upsertEvent: (
-        event: Omit<EventMessage, "id" | "kind"> & { key: string },
-      ) =>
+      upsertEvent: (event) =>
         set((state) => {
           const index = state.messages.findIndex(
             (m): m is EventMessage => m.kind === "event" && m.key === event.key,
           );
 
-          // Not found → append
           if (index === -1) {
             return {
               messages: [
@@ -521,15 +521,8 @@ export const usePostWinStore = create<State>()(
             };
           }
 
-          // Found → update safely
           const updated = [...state.messages];
-          const existing = updated[index] as EventMessage;
-
-          updated[index] = {
-            ...existing,
-            ...event,
-          };
-
+          updated[index] = { ...updated[index], ...event };
           return { messages: updated };
         }),
 
