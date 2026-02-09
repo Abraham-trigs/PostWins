@@ -5,6 +5,7 @@
 
 import { useId, useMemo, useState } from "react";
 import { Maximize2 } from "lucide-react"; // Icon for fullscreen affordance (lucide-react)
+import { ExplainCasePanel } from "./../chat/explain/ExplainCasePanel";
 
 type Props = {
   onOpenFullScreen?: () => void; // Optional: when present, render a live fullscreen button; otherwise render a skeleton placeholder
@@ -134,7 +135,7 @@ export function DetailsPanelSelected({ onOpenFullScreen }: Props) {
           {tab === "media" && <MediaSection />}
           {tab === "files" && <FilesSection />}
           {tab === "links" && <LinksSection />}
-          {tab === "explain" && <ExplainPlaceholder />}
+          {tab === "explain" && <ExplainCasePanel caseId={"TODO_CASE_ID"} />}
 
           <div className="h-4" />
         </div>
@@ -195,16 +196,6 @@ function LinksSection() {
             className="h-10 w-full rounded-[var(--xotic-radius-sm)]"
           />
         ))}
-      </div>
-    </SectionCard>
-  );
-}
-
-function ExplainPlaceholder() {
-  return (
-    <SectionCard title="Explain Case">
-      <div className="text-sm text-ink/60">
-        Explainability panel coming next.
       </div>
     </SectionCard>
   );
