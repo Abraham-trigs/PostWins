@@ -112,7 +112,7 @@ function buildTitle(c: CaseListItem): string {
 }
 
 function buildPreview(c: CaseListItem): string {
-  return `${c.status} • ${c.routingStatus} • ${c.type}`;
+  return `${c.lifecycle} • ${c.type}`;
 }
 
 export function DesktopChatList({ activeId, onSelect }: Props) {
@@ -200,7 +200,7 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
               aria-hidden="true"
             />
             <input
-              id="xotic-search"
+              id="PostWin-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search cases…"
