@@ -22,6 +22,13 @@ export type TimelineItem =
       label: string;
       status: "missing" | "upcoming";
       daysFromDelivery: number;
+    }
+  | {
+      type: "window";
+      openedAt: string;
+      closesAt: string;
+      label: string;
+      status: "open" | "closed" | "expired";
     };
 
 export type TimelineResponse = {
