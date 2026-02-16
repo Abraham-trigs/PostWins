@@ -11,7 +11,9 @@
     "moduleResolution": "NodeNext",
     "baseUrl": ".",
     "paths": {
-      "@posta/core": ["../../packages/core/src/index.ts"]
+      "@posta/core": ["../../packages/core/src/index.ts"],
+      "@/modules/*": ["./apps/backend/src/modules/*"],
+      "@disbursement": ["src/modules/disbursement/index.ts"]
     },
     "declaration": true,
     "declarationMap": true
