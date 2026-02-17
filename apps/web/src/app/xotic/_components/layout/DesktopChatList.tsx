@@ -9,6 +9,7 @@ import {
   type PostWinListItem,
   type PostWinLifecycle,
 } from "@/lib/domain/postwin.types";
+import { lifecyclePresentationMap } from "@/lib/presentation/postwin.presentation";
 
 type Props = {
   activeId: string | null;
@@ -41,9 +42,34 @@ function buildTitle(p: PostWinListItem): string {
       : `PostWin ${idShort}`;
 }
 
-function buildPreview(p: PostWinListItem): string {
-  return `${p.lifecycle} • ${p.type}`;
+/* ------------------------------------------------------------------ */
+/* Lifecycle Badge */
+/* ------------------------------------------------------------------ */
+
+function LifecycleBadge({ lifecycle }: { lifecycle: PostWinLifecycle }) {
+  const { label, tone } = lifecyclePresentationMap[lifecycle];
+
+  const toneClass =
+    tone === "success"
+      ? "bg-[var(--state-success)]/20 text-[var(--state-success)]"
+      : tone === "danger"
+        ? "bg-[var(--state-danger)]/20 text-[var(--state-danger)]"
+        : tone === "warning"
+          ? "bg-[var(--state-warning)]/20 text-[var(--state-warning)]"
+          : tone === "info"
+            ? "bg-ocean/20 text-ocean"
+            : "bg-surface-muted text-ink/80";
+
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full ${toneClass}`}
+    >
+      {label}
+    </span>
+  );
 }
+
+/* ------------------------------------------------------------------ */
 
 function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
   return (
@@ -73,9 +99,14 @@ function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
           <p className="truncate text-sm font-semibold text-ink">
             {buildTitle(item)}
           </p>
-          <p className="mt-1 truncate text-xs text-ink/70">
-            {buildPreview(item)}
-          </p>
+
+          {/* 🔹 Lifecycle badge + type */}
+          <div className="mt-1 flex items-center gap-2">
+            <LifecycleBadge lifecycle={item.lifecycle} />
+            <span className="text-xs text-ink/60 capitalize">
+              {item.type.toLowerCase()}
+            </span>
+          </div>
         </div>
 
         <div className="text-[11px] text-ink/55">
@@ -99,13 +130,10 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
   const loadMore = usePostWinListStore((s) => s.loadMore);
   const hasMore = usePostWinListStore((s) => s.meta?.hasMore ?? false);
 
-  ////////////////////////////////////////////////////////////
-  // Debounced search
-  ////////////////////////////////////////////////////////////
+  /* -------------------- Debounced search -------------------- */
 
   const [localSearch, setLocalSearch] = useState(params.search);
 
-  // Keep input synced if params.search changes externally
   useEffect(() => {
     setLocalSearch(params.search);
   }, [params.search]);
@@ -116,13 +144,10 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
         void setSearch(localSearch);
       }
     }, 400);
-
     return () => clearTimeout(handler);
   }, [localSearch, params.search, setSearch]);
 
-  ////////////////////////////////////////////////////////////
-  // Infinite scroll
-  ////////////////////////////////////////////////////////////
+  /* -------------------- Infinite scroll -------------------- */
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -144,29 +169,17 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
 
   const filtered = useMemo(() => items, [items]);
 
-  ////////////////////////////////////////////////////////////
-
   return (
-    <aside
-      aria-label="PostWin list"
-      className="w-[var(--xotic-list-w)] flex-shrink-0 bg-paper border-r border-line/40 flex flex-col overflow-hidden"
-    >
-      <div className="h-[var(--xotic-topbar-h)] flex-shrink-0 px-[var(--xotic-pad-4)] flex items-center gap-2 bg-paper border-b border-line/40">
-        <div className="min-w-0 flex-1">
-          <label className="sr-only" htmlFor="postwin-search">
-            Search PostWins
-          </label>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink/55" />
-            <input
-              id="postwin-search"
-              value={localSearch}
-              onChange={(e) => setLocalSearch(e.target.value)}
-              placeholder="Search PostWins…"
-              className="w-full h-9 rounded-full pl-9 pr-4 text-sm bg-surface-strong text-ink border border-line/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
+    <aside className="w-[var(--xotic-list-w)] flex-shrink-0 bg-paper border-r border-line/40 flex flex-col overflow-hidden">
+      <div className="h-[var(--xotic-topbar-h)] px-[var(--xotic-pad-4)] flex items-center gap-2 bg-paper border-b border-line/40">
+        <div className="min-w-0 flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink/55" />
+          <input
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            placeholder="Search PostWins…"
+            className="w-full h-9 rounded-full pl-9 pr-4 text-sm bg-surface-strong text-ink border border-line/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
         </div>
 
         <select
@@ -187,8 +200,6 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
         </select>
 
         <button
-          type="button"
-          aria-label="Refresh"
           onClick={refresh}
           disabled={loading}
           className="h-9 w-9 rounded-full grid place-items-center border border-line/50 bg-surface-strong disabled:opacity-60"
@@ -197,7 +208,6 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
         </button>
 
         <button
-          type="button"
           onClick={bootstrapPostWin}
           className="h-9 px-4 rounded-full bg-[var(--brand-primary)] text-ink text-sm font-semibold inline-flex items-center gap-2"
         >
