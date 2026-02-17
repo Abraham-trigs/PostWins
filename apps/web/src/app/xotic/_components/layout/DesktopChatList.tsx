@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, RotateCw } from "lucide-react";
 import { usePostWinStore } from "../chat/store/usePostWinStore";
 import { usePostWinListStore } from "@/app/xotic/_components/chat/store/usePostWinListStore";
@@ -55,7 +55,6 @@ function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
       className={[
         "w-full text-left group relative",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "transition-colors duration-200",
         active ? "bg-surface-strong" : "bg-transparent hover:bg-surface",
       ].join(" ")}
     >
@@ -90,7 +89,6 @@ function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
 export function DesktopChatList({ activeId, onSelect }: Props) {
   const bootstrapPostWin = usePostWinStore((s) => s.bootstrapPostWin);
 
-  // ✅ React 19-safe selectors
   const items = usePostWinListStore((s) => s.items);
   const loading = usePostWinListStore((s) => s.status === "loading");
   const error = usePostWinListStore((s) => s.error);
@@ -100,6 +98,31 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
   const refresh = usePostWinListStore((s) => s.refetch);
   const loadMore = usePostWinListStore((s) => s.loadMore);
   const hasMore = usePostWinListStore((s) => s.meta?.hasMore ?? false);
+
+  ////////////////////////////////////////////////////////////
+  // Debounced search
+  ////////////////////////////////////////////////////////////
+
+  const [localSearch, setLocalSearch] = useState(params.search);
+
+  // Keep input synced if params.search changes externally
+  useEffect(() => {
+    setLocalSearch(params.search);
+  }, [params.search]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (localSearch !== params.search) {
+        void setSearch(localSearch);
+      }
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [localSearch, params.search, setSearch]);
+
+  ////////////////////////////////////////////////////////////
+  // Infinite scroll
+  ////////////////////////////////////////////////////////////
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -121,23 +144,14 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
 
   const filtered = useMemo(() => items, [items]);
 
+  ////////////////////////////////////////////////////////////
+
   return (
     <aside
       aria-label="PostWin list"
-      className={[
-        "w-[var(--xotic-list-w)] flex-shrink-0",
-        "bg-paper",
-        "border-r border-line/40",
-        "flex flex-col overflow-hidden",
-      ].join(" ")}
+      className="w-[var(--xotic-list-w)] flex-shrink-0 bg-paper border-r border-line/40 flex flex-col overflow-hidden"
     >
-      <div
-        className={[
-          "h-[var(--xotic-topbar-h)] flex-shrink-0",
-          "px-[var(--xotic-pad-4)] flex items-center gap-2",
-          "bg-paper border-b border-line/40",
-        ].join(" ")}
-      >
+      <div className="h-[var(--xotic-topbar-h)] flex-shrink-0 px-[var(--xotic-pad-4)] flex items-center gap-2 bg-paper border-b border-line/40">
         <div className="min-w-0 flex-1">
           <label className="sr-only" htmlFor="postwin-search">
             Search PostWins
@@ -147,20 +161,14 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink/55" />
             <input
               id="postwin-search"
-              value={params.search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
               placeholder="Search PostWins…"
-              className={[
-                "w-full h-9 rounded-full pl-9 pr-4 text-sm",
-                "bg-surface-strong text-ink",
-                "border border-line/50",
-                "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              ].join(" ")}
+              className="w-full h-9 rounded-full pl-9 pr-4 text-sm bg-surface-strong text-ink border border-line/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
         </div>
 
-        {/* ✅ Lifecycle filter */}
         <select
           value={params.lifecycle ?? ""}
           onChange={(e) =>
@@ -168,12 +176,7 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
               e.target.value ? (e.target.value as PostWinLifecycle) : undefined,
             )
           }
-          className={[
-            "h-9 rounded-full px-3 text-sm",
-            "bg-surface-strong text-ink",
-            "border border-line/50",
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          ].join(" ")}
+          className="h-9 rounded-full px-3 text-sm bg-surface-strong text-ink border border-line/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="">All</option>
           {PostWinLifecycleValues.map((l) => (
@@ -188,11 +191,7 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
           aria-label="Refresh"
           onClick={refresh}
           disabled={loading}
-          className={[
-            "h-9 w-9 rounded-full grid place-items-center",
-            "border border-line/50 bg-surface-strong",
-            "disabled:opacity-60",
-          ].join(" ")}
+          className="h-9 w-9 rounded-full grid place-items-center border border-line/50 bg-surface-strong disabled:opacity-60"
         >
           <RotateCw className="h-4 w-4" />
         </button>
@@ -200,11 +199,7 @@ export function DesktopChatList({ activeId, onSelect }: Props) {
         <button
           type="button"
           onClick={bootstrapPostWin}
-          className={[
-            "h-9 px-4 rounded-full",
-            "bg-[var(--brand-primary)] text-ink text-sm font-semibold",
-            "inline-flex items-center gap-2",
-          ].join(" ")}
+          className="h-9 px-4 rounded-full bg-[var(--brand-primary)] text-ink text-sm font-semibold inline-flex items-center gap-2"
         >
           <Plus className="h-4 w-4" />
           New
