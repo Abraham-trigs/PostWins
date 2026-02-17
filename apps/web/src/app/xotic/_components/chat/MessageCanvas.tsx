@@ -2,10 +2,10 @@
 "use client";
 
 import { MessagesSurface } from "./MessagesSurface";
-import { useChatStore } from "./store/useChatStore";
+import { usePostWinStor } from "./store/usePostWinStore";
 
 export function MessageCanvas() {
-  const { messages, appendText } = useChatStore((s) => ({
+  const { messages, appendText } = usePostWinStor((s) => ({
     messages: s.messages,
     appendText: s.appendText,
   }));

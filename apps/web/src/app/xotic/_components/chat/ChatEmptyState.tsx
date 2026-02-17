@@ -3,7 +3,7 @@
 "use client";
 
 import { MessageSquareText } from "lucide-react";
-import { PrimaryActionButton } from "../ui/PrimaryActionButton";
+import { PrimaryActionButton } from "../UI/PrimaryActionButton";
 
 type Variant = "tablet" | "desktop";
 

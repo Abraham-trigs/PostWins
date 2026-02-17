@@ -68,8 +68,8 @@ export default function Step2Beneficiary({ value, onAnswer }: Props) {
             onChange={(e) => setName(e.target.value)}
             placeholder={
               type === "individual"
-                ? "e.g. Ama Mensah"
-                : "e.g. Nima Youth Group"
+                ? "e.g. Nii Bortey"
+                : "e.g. China Youth Group"
             }
             className="w-full h-9 rounded-lg px-3 text-sm bg-surface-strong border border-line/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
