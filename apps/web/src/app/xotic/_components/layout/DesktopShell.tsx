@@ -13,6 +13,7 @@ import { MessagesSurface } from "../chat/MessagesSurface";
 import { DetailsFullScreenOverlay } from "../details/DetailsFullScreenOverlay";
 
 import { usePostWinStore } from "../chat/store/usePostWinStore";
+import { usePostWinListStore } from "@/app/xotic/_components/chat/store/usePostWinListStore";
 import type { ChatMessage } from "../chat/store/types";
 
 function nowIso() {
@@ -114,13 +115,14 @@ function timelineToMessages(t: TimelineResponse): ChatMessage[] {
       continue;
     }
 
-    // gap
     out.push({
       id: uid("e"),
       kind: "event",
       title:
         item.status === "missing" ? "Follow-up missing" : "Follow-up scheduled",
-      meta: `${item.label} • ${new Date(item.scheduledFor).toLocaleString()} • deliveryId: ${item.deliveryId}`,
+      meta: `${item.label} • ${new Date(
+        item.scheduledFor,
+      ).toLocaleString()} • deliveryId: ${item.deliveryId}`,
       status: item.status === "missing" ? "failed" : "pending",
       createdAt: item.scheduledFor,
     });
@@ -153,20 +155,27 @@ export function DesktopShell() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailsFullOpen, setDetailsFullOpen] = useState(false);
 
-  // Messages live in zustand
+  // Chat store
   const messages = usePostWinStore((s) => s.messages);
-
-  // Only need attachIds here (do NOT hard reset while selecting a case)
   const attachIds = usePostWinStore((s) => s.attachIds);
+  const storeProjectId = usePostWinStore((s) => s.ids.projectId);
+
+  // List store integration
+  const initializeList = usePostWinListStore((s) => s.initialize);
+  const selectList = usePostWinListStore((s) => s.select);
+
+  // Initialize list store with tenant
+  useEffect(() => {
+    const tenantId = getTenantId();
+    initializeList(tenantId);
+  }, [initializeList]);
 
   // Auto-select newly bootstrapped projectId
-  const storeProjectId = usePostWinStore((s) => s.ids.projectId);
   useEffect(() => {
     if (storeProjectId && storeProjectId !== activeId) {
       setActiveId(storeProjectId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeProjectId]);
+  }, [storeProjectId, activeId]);
 
   useEffect(() => {
     if (activeId === null) setDetailsFullOpen(false);
@@ -182,7 +191,7 @@ export function DesktopShell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [detailsFullOpen]);
 
-  // When a case is selected, load its timeline into the store
+  // Timeline loading remains unchanged
   useEffect(() => {
     let mounted = true;
 
@@ -190,7 +199,6 @@ export function DesktopShell() {
       if (!activeId) return;
 
       try {
-        // ✅ Keep ids stable; only attach + clear messages
         attachIds({ projectId: activeId, postWinId: null });
 
         usePostWinStore.setState(
@@ -262,7 +270,10 @@ export function DesktopShell() {
         <div className="bg-surface border-r border-line/40">
           <DesktopChatList
             activeId={activeId}
-            onSelect={(id) => setActiveId((prev) => (prev === id ? null : id))}
+            onSelect={(id) => {
+              setActiveId((prev) => (prev === id ? null : id));
+              selectList(id);
+            }}
           />
         </div>
 
