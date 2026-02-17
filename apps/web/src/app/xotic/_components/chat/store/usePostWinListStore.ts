@@ -1,5 +1,6 @@
 // apps/web/src/lib/stores/usePostWinListStore.ts
-// Purpose: Desktop PostWin list read-model store with abort-safe fetching, debounced search support, and infinite-scroll-ready pagination.
+// Purpose: Desktop PostWin list read-model store with abort-safe fetching,
+// stale-response protection, and infinite-scroll-safe pagination.
 
 "use client";
 
@@ -10,7 +11,6 @@ import type {
   PostWinListItem,
   PostWinLifecycle,
   PaginationMeta,
-  ListPostWinsParams,
 } from "@/lib/domain/postwin.types";
 
 ////////////////////////////////////////////////////////////////
@@ -19,10 +19,6 @@ import type {
 
 type FetchStatus = "idle" | "loading" | "success" | "error";
 
-/**
- * Normalized internal params.
- * We DO NOT use Required<> because lifecycle is legitimately optional.
- */
 type NormalizedParams = {
   page: number;
   pageSize: number;
@@ -31,44 +27,33 @@ type NormalizedParams = {
 };
 
 type State = {
-  // Data
   items: PostWinListItem[];
   meta: PaginationMeta;
 
-  // UI state
   selectedId: string | null;
   status: FetchStatus;
   error?: string;
 
-  // Query state
   tenantId: string | null;
   params: NormalizedParams;
 
-  // Infinite scroll state
   isLoadingMore: boolean;
 
-  // Internal
   abortController: AbortController | null;
   lastFetchedAt: string | null;
 
-  /* ---------- lifecycle ---------- */
+  // 🧠 protects against stale responses
+  requestKey: string | null;
 
   initialize: (tenantId: string) => Promise<void>;
   refetch: () => Promise<void>;
   loadMore: () => Promise<void>;
 
-  /* ---------- query controls ---------- */
-
   setSearch: (search: string) => Promise<void>;
   setLifecycleFilter: (lifecycle?: PostWinLifecycle) => Promise<void>;
   setPageSize: (pageSize: number) => Promise<void>;
 
-  /* ---------- selection ---------- */
-
   select: (id: string | null) => void;
-
-  /* ---------- reset ---------- */
-
   reset: () => void;
 };
 
@@ -80,18 +65,22 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function makeRequestKey(): string {
+  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
 const defaultMeta: PaginationMeta = {
   page: 1,
   pageSize: 20,
   total: null,
-  hasMore: null,
+  hasMore: false, // safer default
 };
 
 const defaultParams: NormalizedParams = {
   page: 1,
   pageSize: 20,
   search: "",
-  lifecycle: undefined, // explicitly allowed
+  lifecycle: undefined,
 };
 
 ////////////////////////////////////////////////////////////////
@@ -111,8 +100,11 @@ export const usePostWinListStore = create<State>()(
       isLoadingMore: false,
       abortController: null,
       lastFetchedAt: null,
+      requestKey: null,
 
-      /* ---------- lifecycle ---------- */
+      ////////////////////////////////////////////////////////////
+      // lifecycle
+      ////////////////////////////////////////////////////////////
 
       initialize: async (tenantId) => {
         if (!tenantId?.trim()) {
@@ -132,9 +124,11 @@ export const usePostWinListStore = create<State>()(
         if (existing) existing.abort();
 
         const controller = new AbortController();
+        const requestKey = makeRequestKey();
 
         set({
           abortController: controller,
+          requestKey,
           status: "loading",
           error: undefined,
           items: [],
@@ -146,6 +140,9 @@ export const usePostWinListStore = create<State>()(
           { ...params, page: 1 },
           { signal: controller.signal },
         );
+
+        // 🛑 stale protection
+        if (get().requestKey !== requestKey) return;
 
         if ("error" in result) {
           set({
@@ -170,18 +167,31 @@ export const usePostWinListStore = create<State>()(
       },
 
       loadMore: async () => {
-        const { tenantId, meta, params, isLoadingMore } = get();
-        if (!tenantId || isLoadingMore) return;
-        if (meta.hasMore === false) return;
+        const { tenantId, meta, params, isLoadingMore, status } = get();
 
-        set({ isLoadingMore: true });
+        if (!tenantId) return;
+        if (isLoadingMore) return;
+        if (!meta.hasMore) return; // null and false both block
+        if (status !== "success") return;
 
         const nextPage = meta.page + 1;
+        const requestKey = makeRequestKey();
+
+        set({
+          isLoadingMore: true,
+          requestKey,
+        });
 
         const result = await listPostWins(tenantId, {
           ...params,
           page: nextPage,
         });
+
+        // 🛑 stale protection
+        if (get().requestKey !== requestKey) {
+          set({ isLoadingMore: false });
+          return;
+        }
 
         if ("error" in result) {
           set({
@@ -202,7 +212,9 @@ export const usePostWinListStore = create<State>()(
         });
       },
 
-      /* ---------- query controls ---------- */
+      ////////////////////////////////////////////////////////////
+      // query controls
+      ////////////////////////////////////////////////////////////
 
       setSearch: async (search) => {
         set({
@@ -239,11 +251,15 @@ export const usePostWinListStore = create<State>()(
         await get().refetch();
       },
 
-      /* ---------- selection ---------- */
+      ////////////////////////////////////////////////////////////
+      // selection
+      ////////////////////////////////////////////////////////////
 
       select: (id) => set({ selectedId: id }),
 
-      /* ---------- reset ---------- */
+      ////////////////////////////////////////////////////////////
+      // reset
+      ////////////////////////////////////////////////////////////
 
       reset: () =>
         set({
@@ -257,6 +273,7 @@ export const usePostWinListStore = create<State>()(
           isLoadingMore: false,
           abortController: null,
           lastFetchedAt: null,
+          requestKey: null,
         }),
     }),
     { name: "posta-postwin-list-store" },
@@ -266,30 +283,28 @@ export const usePostWinListStore = create<State>()(
 ////////////////////////////////////////////////////////////////
 // Design reasoning
 ////////////////////////////////////////////////////////////////
-// Required<> was incorrect because lifecycle is optional by domain definition.
-// NormalizedParams reflects runtime truth: lifecycle may be undefined.
-// This preserves correct filtering semantics and prevents invalid coercion.
+// Introduced requestKey to prevent stale responses overwriting fresh state.
+// Infinite scroll now safe under rapid filter changes.
+// hasMore default false prevents accidental uncontrolled loading.
 
 ////////////////////////////////////////////////////////////////
 // Structure
 ////////////////////////////////////////////////////////////////
-// - Internal NormalizedParams type
-// - Explicit optional lifecycle
-// - Abort-safe refetch
-// - Infinite-scroll-ready loadMore
-// - Query state isolated from UI state
+// - requestKey for concurrency safety
+// - abort-safe refetch
+// - stale-guarded loadMore
+// - status-driven pagination control
 
 ////////////////////////////////////////////////////////////////
 // Implementation guidance
 ////////////////////////////////////////////////////////////////
-// Keep lifecycle optional in all normalized query layers.
-// Do not use Required<> for filter models.
-// Wrap setSearch with a debounced input handler (300–500ms).
-// When backend adds cursor pagination, swap page-based logic without changing consumers.
+// UI should debounce search input (300–500ms).
+// When backend supports true cursor pagination,
+// replace page logic internally without breaking consumers.
 
 ////////////////////////////////////////////////////////////////
 // Scalability insight
 ////////////////////////////////////////////////////////////////
-// Correct query modeling prevents subtle filtering bugs.
-// Optional filters must remain optional across store and API layers.
-// Strong internal typing keeps state transitions predictable under scale.
+// Stale response protection becomes critical under high latency
+// or multi-filter UIs. Without it, list corruption happens silently.
+// This store is now safe for real production concurrency.
