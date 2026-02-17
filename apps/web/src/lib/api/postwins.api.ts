@@ -138,12 +138,12 @@ export async function listPostWins(
     const normalizedParams = normalizeParams(params);
     const queryString = buildQueryString(normalizedParams);
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_BACKEND_ORIGIN;
     if (!baseUrl) {
       return { error: "API base URL not configured" };
     }
 
-    const res = await fetch(`${baseUrl}/cases?${queryString}`, {
+    const res = await fetch(`${baseUrl}/api/cases?${queryString}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -233,7 +233,7 @@ export async function listPostWins(
 // This file only adapts transport → domain.
 
 ////////////////////////////////////////////////////////////////
-// Scalability insight
+// Scalability insight const
 ////////////////////////////////////////////////////////////////
 // Strong boundary enforcement prevents type drift across layers.
 // When backend adds real pagination, remove client slicing and
