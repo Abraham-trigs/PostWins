@@ -2,7 +2,7 @@ import type { PostWinLifecycle } from "@/lib/domain/postwin.types";
 
 export type LifecyclePresentation = {
   label: string;
-  tone: "neutral" | "success" | "warning" | "danger" | "info";
+  tone: "neutral" | "success" | "warning" | "danger" | "updating" | "info";
 };
 
 export const lifecyclePresentationMap: Record<
@@ -15,7 +15,7 @@ export const lifecyclePresentationMap: Record<
   EXECUTING: { label: "In Progress", tone: "info" },
   VERIFIED: { label: "Verified", tone: "success" },
   FLAGGED: { label: "Flagged", tone: "warning" },
-  HUMAN_REVIEW: { label: "Under Review", tone: "warning" },
+  HUMAN_REVIEW: { label: "Under Review", tone: "updating" },
   COMPLETED: { label: "Completed", tone: "success" },
   REJECTED: { label: "Rejected", tone: "danger" },
   CANCELLED: { label: "Cancelled", tone: "danger" },

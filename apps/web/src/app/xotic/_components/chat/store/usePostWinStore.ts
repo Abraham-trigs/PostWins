@@ -776,6 +776,6 @@ export const usePostWinStore = create<State>()(
         }
       },
     }),
-    { name: "posta-postwin-store" },
+    { name: "PostWins" },
   ),
 );
