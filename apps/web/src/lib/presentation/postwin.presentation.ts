@@ -21,3 +21,18 @@ export const lifecyclePresentationMap: Record<
   CANCELLED: { label: "Cancelled", tone: "danger" },
   ARCHIVED: { label: "Archived", tone: "neutral" },
 };
+
+export type RoutingPresentation = {
+  label: string;
+  tone: "neutral" | "success" | "warning" | "danger";
+};
+
+export const routingPresentationMap: Record<
+  "UNASSIGNED" | "MATCHED" | "FALLBACK" | "BLOCKED",
+  RoutingPresentation
+> = {
+  UNASSIGNED: { label: "Unassigned", tone: "warning" },
+  MATCHED: { label: "Assigned", tone: "success" },
+  FALLBACK: { label: "Fallback", tone: "neutral" },
+  BLOCKED: { label: "Blocked", tone: "danger" },
+};

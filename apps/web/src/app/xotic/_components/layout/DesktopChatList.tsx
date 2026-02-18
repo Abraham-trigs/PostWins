@@ -9,7 +9,10 @@ import {
   type PostWinListItem,
   type PostWinLifecycle,
 } from "@/lib/domain/postwin.types";
-import { lifecyclePresentationMap } from "@/lib/presentation/postwin.presentation";
+import {
+  lifecyclePresentationMap,
+  routingPresentationMap,
+} from "@/lib/presentation/postwin.presentation";
 
 type Props = {
   activeId: string | null;
@@ -70,6 +73,35 @@ function LifecycleBadge({ lifecycle }: { lifecycle: PostWinLifecycle }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Routing Badge */
+/* ------------------------------------------------------------------ */
+
+function RoutingBadge({
+  outcome,
+}: {
+  outcome: "UNASSIGNED" | "MATCHED" | "FALLBACK" | "BLOCKED";
+}) {
+  const { label, tone } = routingPresentationMap[outcome];
+
+  const toneClass =
+    tone === "success"
+      ? "bg-[var(--state-success)]/20 text-[var(--state-success)]"
+      : tone === "danger"
+        ? "bg-[var(--state-danger)]/20 text-[var(--state-danger)]"
+        : tone === "warning"
+          ? "bg-[var(--state-warning)]/20 text-[var(--state-warning)]"
+          : "bg-surface-muted text-ink/80";
+
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full ${toneClass}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 
 function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
   return (
@@ -100,12 +132,10 @@ function DesktopChatRow({ item, active, onSelect }: DesktopChatRowProps) {
             {buildTitle(item)}
           </p>
 
-          {/* 🔹 Lifecycle badge + type */}
-          <div className="mt-1 flex items-center gap-2">
+          {/* Lifecycle + Routing badges */}
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             <LifecycleBadge lifecycle={item.lifecycle} />
-            <span className="text-xs text-ink/60 capitalize">
-              {item.type.toLowerCase()}
-            </span>
+            <RoutingBadge outcome={item.routingOutcome} />
           </div>
         </div>
 
