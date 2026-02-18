@@ -1,4 +1,4 @@
-// apps/web/src/app/xotic/_components/layout/DesktopShell.tsx
+// [storeProjectId, activeId]); apps/web/src/app/xotic/_components/layout/DesktopShell.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -175,7 +175,7 @@ export function DesktopShell() {
     if (storeProjectId && storeProjectId !== activeId) {
       setActiveId(storeProjectId);
     }
-  }, [storeProjectId, activeId]);
+  }, [storeProjectId]);
 
   useEffect(() => {
     if (activeId === null) setDetailsFullOpen(false);

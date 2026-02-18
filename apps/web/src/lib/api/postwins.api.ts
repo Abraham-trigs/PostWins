@@ -150,6 +150,10 @@ export async function listPostWins(
         "X-Tenant-Id": tenantId,
       },
       credentials: "include",
+
+      // 🔥 Critical: prevent browser HTTP caching (fixes 304 issue)
+      cache: "no-store",
+
       signal: options?.signal,
     });
 
