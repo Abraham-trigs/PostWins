@@ -1,6 +1,8 @@
 // apps/website/src/app/request-demo/page.tsx
+// Purpose: SEO-optimized Request Demo page rendering role-aware RequestDemoClient.
+
 import type { Metadata } from "next";
-import RequestDemoSection from "./_components/RequestDemoSection";
+import RequestDemoClient from "./_components/RequestDemoClient";
 import { ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -34,9 +36,9 @@ export const metadata: Metadata = {
 
 /**
  * PRODUCTION-GRADE REQUEST DEMO PAGE
- * Injects ContactPoint JSON-LD to qualify for Google "Action" snippets.
+ * Injects ContactPage JSON-LD for structured SEO eligibility.
  */
-export default function RequestDemoPage() {
+export default function RequestDemoPage(): JSX.Element {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "ContactPage",
@@ -46,14 +48,14 @@ export default function RequestDemoPage() {
     mainEntity: {
       "@type": "ContactPoint",
       contactType: "sales",
-      email: "governance@postwins.io",
+      email: "demo@postwins.io",
       availableLanguage: ["en"],
     },
   };
 
   return (
     <article className="bg-slate-950 min-h-screen">
-      {/* 1. INJECT STRUCTURED DATA */}
+      {/* 1. STRUCTURED DATA */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -63,17 +65,17 @@ export default function RequestDemoPage() {
       <header className="sr-only">
         <h1>Request a Deterministic Walkthrough of PostWins Infrastructure</h1>
         <p>
-          Schedule a deep-dive into our 6-layer governance engine and lifecycle
+          Schedule a deep-dive into our governance engine and lifecycle
           enforcement.
         </p>
       </header>
 
-      {/* 3. THE INTAKE COMPONENT */}
+      {/* 3. ROLE-AWARE CLIENT WRAPPER */}
       <div className="relative pt-20">
-        <RequestDemoSection />
+        <RequestDemoClient />
       </div>
 
-      {/* 4. SECURITY REASSURANCE FOOTER */}
+      {/* 4. SECURITY FOOTER */}
       <footer className="pb-20 px-6">
         <div className="max-w-md mx-auto flex items-center justify-center gap-2 text-[10px] font-mono text-slate-700 uppercase tracking-widest">
           <ShieldCheck className="h-3 w-3" />
