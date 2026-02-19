@@ -41,6 +41,8 @@ export default function Header() {
   const NAV_LINKS = [
     { name: "About", href: "/about" },
     { name: "Architecture", href: "/architecture" },
+    { name: "Security", href: "/security" },
+    { name: "Impact", href: "/impact" },
   ];
 
   const handleReset = () => {

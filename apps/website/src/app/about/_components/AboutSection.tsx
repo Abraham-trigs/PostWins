@@ -1,8 +1,8 @@
 // apps/website/src/_components/AboutSection.tsx
 "use client";
 
-import { useExperienceStore } from "../_store/useExperienceStore";
-import { STAKEHOLDER_COPY } from "../_lib/stakeholder-content";
+import { useExperienceStore } from "../../../_store/useExperienceStore";
+import { STAKEHOLDER_COPY } from "../../../_lib/stakeholder-content";
 import { motion } from "framer-motion";
 import { ShieldCheck, Scale, Cpu, Lock, ArrowRight, Zap } from "lucide-react";
 
