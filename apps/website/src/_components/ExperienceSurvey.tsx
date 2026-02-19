@@ -3,10 +3,29 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useExperienceStore } from "../_store/useExperienceStore";
 import { PRIMARY_ROLES, PrimaryRole } from "../_lib/experience.types";
 import { ChevronRightIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 import { telemetry } from "../_lib/analytics.client";
+
+/**
+ * Design reasoning:
+ * This component derives stakeholder identity and must:
+ * - Persist role deterministically
+ * - Log intent safely
+ * - Close intercepted modal context cleanly
+ *
+ * Structure:
+ * - Local temp selection state
+ * - Telemetry capture (non-blocking)
+ * - Store commit
+ * - Router replace to collapse parallel modal slot
+ *
+ * Scalability insight:
+ * If identity derivation expands (multi-step wizard),
+ * move routing logic into a dedicated orchestration hook.
+ */
 
 const roleDescriptions: Record<string, string> = {
   donor: "Verify impact ROI through audit-backed execution and ledger history.",
@@ -20,12 +39,13 @@ const roleDescriptions: Record<string, string> = {
 };
 
 export default function ExperienceSurvey() {
+  const router = useRouter();
   const [tempRole, setTempRole] = useState<PrimaryRole>(null);
   const { setPrimaryRole, markSurveyComplete } = useExperienceStore();
 
   const handleRoleSelection = (role: PrimaryRole) => {
     setTempRole(role);
-    // Forensic Intent Logging
+
     telemetry.capture("role_selected", {
       role_intent: role,
       context: "LIFECYCLE_INTAKE",
@@ -33,22 +53,23 @@ export default function ExperienceSurvey() {
   };
 
   const handleConfirm = () => {
-    if (tempRole) {
-      // Deterministic Audit Log
-      telemetry.capture("experience_confirmed", {
-        final_role: tempRole,
-        path: window.location.pathname,
-        enforcement: "POLICY_VALIDATED",
-      });
+    if (!tempRole) return;
 
-      setPrimaryRole(tempRole);
-      markSurveyComplete();
-    }
+    telemetry.capture("experience_confirmed", {
+      final_role: tempRole,
+      path: window.location.pathname,
+      enforcement: "POLICY_VALIDATED",
+    });
+
+    setPrimaryRole(tempRole);
+    markSurveyComplete();
+
+    // Critical: Replace route to collapse intercepted modal slot
+    router.replace(`/experience/${tempRole}`);
   };
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-white overflow-hidden border border-slate-800 shadow-2xl rounded-3xl">
-      {/* 1. Governance Header */}
       <div className="p-8 pb-4">
         <motion.div
           initial={{ opacity: 0, x: -10 }}
@@ -60,21 +81,22 @@ export default function ExperienceSurvey() {
             Protocol: Identity_Derivation
           </span>
         </motion.div>
+
         <h2 className="text-3xl font-black tracking-tighter text-white">
           Select your perspective.
         </h2>
+
         <p className="text-slate-500 mt-2 text-sm leading-relaxed max-w-xs">
           PostWins enforces role-based capability derivation at the
           infrastructure level.
         </p>
       </div>
 
-      {/* 2. Deterministic Role List */}
       <div className="p-6 space-y-3 flex-1 overflow-y-auto max-h-[420px] scrollbar-hide">
         {PRIMARY_ROLES.map((role) => (
           <motion.button
             key={role}
-            whileHover={{ x: 4, backgroundColor: "rgba(15, 23, 42, 0.8)" }}
+            whileHover={{ x: 4 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => handleRoleSelection(role)}
             className={`w-full group flex items-start gap-4 p-5 rounded-2xl border-2 transition-all text-left ${
@@ -106,10 +128,12 @@ export default function ExperienceSurvey() {
               >
                 {role}
               </span>
+
               <span className="block text-[11px] text-slate-500 mt-1 leading-normal font-medium italic">
                 {roleDescriptions[role as string]}
               </span>
             </div>
+
             <ChevronRightIcon
               className={`h-4 w-4 mt-2 transition-transform ${
                 tempRole === role
@@ -121,7 +145,6 @@ export default function ExperienceSurvey() {
         ))}
       </div>
 
-      {/* 3. Authority Confirmation Footer */}
       <AnimatePresence>
         {tempRole && (
           <motion.div
@@ -137,6 +160,7 @@ export default function ExperienceSurvey() {
               Confirm {tempRole.replace("_", " ")} Authority
               <ChevronRightIcon className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
             </button>
+
             <p className="text-[9px] text-center text-slate-600 mt-4 font-mono uppercase tracking-widest">
               Executing Deterministic State Transition...
             </p>
@@ -147,7 +171,6 @@ export default function ExperienceSurvey() {
   );
 }
 
-// Utility for clean class merging
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(" ");
 }

@@ -3,43 +3,71 @@
 
 import { useExperienceStore } from "../_store/useExperienceStore";
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-
 /**
- * TELEMETRY DISPATCHER
- * Sends stakeholder intents to the backend ExperienceLog.
+ * Design reasoning:
+ * Telemetry must NEVER block UX or throw unhandled rejections.
+ * No hardcoded localhost fallback.
+ * Analytics is optional infrastructure, not critical path.
+ *
+ * Structure:
+ * - Safe backend resolution
+ * - Non-blocking fire-and-forget dispatch
+ * - Fully contained error handling
+ *
+ * Implementation guidance:
+ * - Do not await telemetry from UI handlers.
+ * - Do not default to localhost.
+ * - Use env to explicitly enable telemetry.
+ *
+ * Scalability insight:
+ * In production, route telemetry through an edge collector
+ * or internal API route instead of direct backend coupling.
  */
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? null;
+
 export const telemetry = {
-  capture: async (event: string, metadata: Record<string, any> = {}) => {
-    // 1. Get current stakeholder state from the store
-    const { primaryRole, hasCompletedSurvey } = useExperienceStore.getState();
-
-    const payload = {
-      event,
-      role: primaryRole || "anonymous",
-      path: window.location.pathname,
-      sessionId: localStorage.getItem("postwins_session_id"), // Persistent ID
-      metadata: {
-        ...metadata,
-        is_complete: hasCompletedSurvey,
-        viewport: `${window.innerWidth}x${window.innerHeight}`,
-      },
-      timestamp: Date.now(),
-    };
-
+  capture: (event: string, metadata: Record<string, any> = {}) => {
     try {
-      // 2. Fire-and-forget API call
-      // We use 'keepalive: true' to ensure the log sends even if the user navigates away
+      const { primaryRole, hasCompletedSurvey } = useExperienceStore.getState();
+
+      const payload = {
+        event,
+        role: primaryRole || "anonymous",
+        path: window.location.pathname,
+        sessionId:
+          localStorage.getItem("postwins_session_id") ?? crypto.randomUUID(),
+        metadata: {
+          ...metadata,
+          is_complete: hasCompletedSurvey,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+        },
+        timestamp: Date.now(),
+      };
+
+      // If no backend defined → skip safely (dev mode default)
+      if (!BACKEND_URL) {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[TELEMETRY_SKIPPED_DEV]", payload);
+        }
+        return;
+      }
+
+      // Fire-and-forget dispatch
       fetch(`${BACKEND_URL}/api/v1/telemetry/experience`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         keepalive: true,
+      }).catch((err) => {
+        if (process.env.NODE_ENV === "development") {
+          console.debug("[TELEMETRY_NETWORK_FAIL]", err);
+        }
       });
     } catch (err) {
-      // Non-blocking: We don't want analytics to crash the user experience
-      console.error("[TELEMETRY_ERROR]", err);
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[TELEMETRY_CAPTURE_FAIL]", err);
+      }
     }
   },
 };
