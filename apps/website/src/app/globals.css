@@ -1,0 +1,74 @@
+/* apps/website/src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222.2 84% 4.9%; /* Slate 950 */
+    --foreground: 210 40% 98%;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-50 antialiased selection:bg-blue-500/30;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  /* High-Performance Action Button */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center px-8 py-4 
+           bg-blue-600 text-white rounded-full font-bold overflow-hidden
+           transition-all duration-300 hover:bg-blue-500 
+           hover:shadow-[0_0_20px_rgba(37,99,235,0.4)]
+           active:scale-[0.98] disabled:opacity-50;
+  }
+
+  /* Stakeholder Glassmorphism Card */
+  .glass-card {
+    @apply bg-slate-900/40 backdrop-blur-xl border border-slate-800/50 
+           shadow-[0_8px_32px_0_rgba(0,0,0,0.3)];
+  }
+
+  /* Deterministic Input (for Survey) */
+  .input-stealth {
+    @apply w-full bg-slate-950 border-2 border-slate-800 rounded-2xl p-4
+           text-white transition-all focus:border-blue-500 focus:outline-none
+           hover:border-slate-700;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Text gradient for "Impact" highlights */
+  .text-gradient-blue {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500;
+  }
+
+  /* Mask for the radial background to prevent sharp edges */
+  .mask-radial {
+    mask-image: radial-gradient(circle at center, black, transparent 80%);
+  }
+}
+
+/* Custom Animations for Stakeholder Swapping */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}

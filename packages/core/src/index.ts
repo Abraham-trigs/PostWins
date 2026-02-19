@@ -173,3 +173,19 @@ export const SDG_TARGETS = {
   SDG_4: { PRIMARY: "SDG_4_PRIMARY", LITERACY: "SDG_4_LITERACY" },
   SDG_5: { EMPOWERMENT: "SDG_5_EMPOWERMENT" },
 } as const;
+
+export const STAKEHOLDER_ROLES = [
+  "donor",
+  "regulator",
+  "operator",
+  "technical",
+  "observer",
+] as const;
+
+export type StakeholderRole = (typeof STAKEHOLDER_ROLES)[number];
+
+export interface GovernanceSession {
+  role: StakeholderRole;
+  verified: boolean;
+  timestamp: number;
+}

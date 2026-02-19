@@ -1,12 +1,24 @@
 {
   "name": "posta",
+  "version": "2.0.0",
   "private": true,
   "packageManager": "pnpm@10.18.2",
   "scripts": {
-    "dev": "pnpm -r dev",
-    "dev:backend": "pnpm --filter @posta/backend dev",
-    "dev:web": "pnpm --filter @posta/web dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck"
+    "dev": "turbo dev --parallel",
+    "website": "turbo dev --filter=@posta/website --parallel --cache=local:r,remote:r --daemon=false",
+    "wins": "turbo dev --filter=@posta/web --parallel --cache=local:r,remote:r --daemon=false",
+    "backend": "turbo dev --filter=@posta/backend --parallel --cache=local:r,remote:r --daemon=false",
+    "build": "turbo build",
+    "build:website": "turbo build --filter=@posta/website",
+    "typecheck": "turbo check-types",
+    "clean": "turbo clean && pnpm -r exec rm -rf node_modules .next dist .turbo",
+    "refresh": "pnpm clean && pnpm install"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.10",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }
