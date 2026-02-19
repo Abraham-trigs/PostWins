@@ -2,7 +2,7 @@
 import VariantBoundary from "@/_components/VariantBoundary";
 import CTAGroup from "@/_components/CTAGroup";
 import ProblemSection from "@/_components/ProblemSection";
-import ArchitectureSection from "@/_components/ArchitectureSection";
+import ArchitectureSection from "@/app/architecture/_components/ArchitectureSection";
 import ImpactSection from "@/_components/ImpactSection";
 
 /**

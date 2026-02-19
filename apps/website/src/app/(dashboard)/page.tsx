@@ -1,5 +1,5 @@
 // apps/web/src/app/(dashboard)/page.tsx
-import ExperienceLogFeed from "@/components/dashboard/ExperienceLogFeed";
+import ExperienceLogFeed from "../../../../web/src/components/dashboard/ExperienceLogFeed";
 
 export default function DashboardPage() {
   return (

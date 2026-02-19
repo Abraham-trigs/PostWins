@@ -1,8 +1,7 @@
-// apps/website/src/_components/ArchitectureSection.tsx
 "use client";
 
-import { useSafeExperienceStore } from "../_store/useExperienceStore";
-import { STAKEHOLDER_COPY } from "../_lib/stakeholder-content";
+import { useSafeExperienceStore } from "@/_store/useExperienceStore";
+import { STAKEHOLDER_COPY } from "@/_lib/stakeholder-content";
 import { motion } from "framer-motion";
 import {
   ShieldCheck,
@@ -12,29 +11,6 @@ import {
   Search,
   RotateCcw,
 } from "lucide-react";
-
-/**
- * Design reasoning:
- * This component reads stakeholder context safely from a persisted Zustand store
- * while avoiding hydration mismatch. It renders deterministic architecture messaging
- * based on role, defaulting to "observer" during first render.
- *
- * Structure:
- * - ARCH_LAYERS static config
- * - Safe store selector
- * - Role-resolved stakeholder copy
- * - Left: architecture engine
- * - Right: contextual explanation
- *
- * Implementation guidance:
- * - Always use useSafeExperienceStore in client components
- * - Guard against null before accessing state
- * - Never assume store hydration is complete on first render
- *
- * Scalability insight:
- * If architecture layers become dynamic, extract ARCH_LAYERS into a shared
- * domain config and version it alongside backend lifecycle layers.
- */
 
 const ARCH_LAYERS = [
   {
@@ -76,31 +52,27 @@ const ARCH_LAYERS = [
 ];
 
 export default function ArchitectureSection() {
-  const roleFromStore = useSafeExperienceStore((state) => state.primaryRole);
-
-  // Fallback before hydration completes
+  const roleFromStore = useSafeExperienceStore((s) => s.primaryRole);
   const role = roleFromStore ?? "observer";
 
-  const stakeholder =
-    STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY] ??
-    STAKEHOLDER_COPY["observer"];
-
-  const { architectureFocus } = stakeholder;
+  const stakeholder = STAKEHOLDER_COPY[role];
+  const { architectureFocus, solution } = stakeholder;
 
   return (
     <section className="py-32 bg-black border-t border-slate-900 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid lg:grid-cols-12 gap-16 items-start">
-          {/* Left */}
+          {/* LEFT */}
           <div className="lg:col-span-7 space-y-12">
             <header className="space-y-4">
               <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter">
                 Infrastructure-Level <br />
                 <span className="text-blue-600">Governance.</span>
               </h2>
+
+              {/* Deterministic summary from content map */}
               <p className="text-slate-500 text-lg max-w-xl">
-                PostWins is engineered as a modular governance engine, not a
-                dashboard. Our architecture enforces correctness at every layer.
+                {solution.summary}
               </p>
             </header>
 
@@ -130,7 +102,7 @@ export default function ArchitectureSection() {
             </div>
           </div>
 
-          {/* Right */}
+          {/* RIGHT */}
           <div className="lg:col-span-5 lg:sticky lg:top-32">
             <motion.div
               key={role}
