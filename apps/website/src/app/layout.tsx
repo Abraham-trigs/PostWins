@@ -2,7 +2,7 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
 import Header from "@/_components/Header";
-import ExperienceRouter from "@/_components/ExperienceRouter";
+// import ExperienceRouter from "@/_components/ExperienceRouter";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -36,7 +36,7 @@ export default function RootLayout({
         className={`${inter.variable} font-sans antialiased bg-slate-950 text-slate-50 selection:bg-blue-500/30`}
       >
         {/* 1. STATE ORCHESTRATOR: Handles persistent stakeholder steering */}
-        <ExperienceRouter />
+        {/* <ExperienceRouter /> */}
 
         {/* 2. GLOBAL NAVIGATION: Stakeholder-aware header */}
         <Header />

@@ -52,20 +52,35 @@ export default function ExperienceSurvey() {
     });
   };
 
+  // const handleConfirm = () => {
+  //   if (!tempRole) return;
+
+  //   telemetry.capture("experience_confirmed", {
+  //     final_role: tempRole,
+  //     path: window.location.pathname,
+  //     enforcement: "POLICY_VALIDATED",
+  //   });
+
+  //   setPrimaryRole(tempRole);
+  //   markSurveyComplete();
+
+  //   // Critical: Replace route to collapse intercepted modal slot
+  //   router.replace(`/experience/${tempRole}`);
+  // };
+
   const handleConfirm = () => {
     if (!tempRole) return;
 
     telemetry.capture("experience_confirmed", {
       final_role: tempRole,
-      path: window.location.pathname,
-      enforcement: "POLICY_VALIDATED",
+      enforcement: "STATE_COMMITTED",
     });
 
     setPrimaryRole(tempRole);
     markSurveyComplete();
 
-    // Critical: Replace route to collapse intercepted modal slot
-    router.replace(`/experience/${tempRole}`);
+    // Close intercepted modal only
+    router.back();
   };
 
   return (

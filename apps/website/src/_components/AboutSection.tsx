@@ -1,17 +1,17 @@
 // apps/website/src/_components/AboutSection.tsx
 "use client";
 
-import { useSafeStore } from "../_store/useExperienceStore";
+import { useExperienceStore } from "../_store/useExperienceStore";
 import { STAKEHOLDER_COPY } from "../_lib/stakeholder-content";
 import { motion } from "framer-motion";
 import { ShieldCheck, Scale, Cpu, Lock, ArrowRight, Zap } from "lucide-react";
 
-/**
- * DETERMINISTIC ABOUT SECTION
- * Implements the PostWins Manifesto with stakeholder-specific nuance.
- */
 export default function AboutSection() {
-  const role = useSafeStore((s) => s.primaryRole) || "observer";
+  const primaryRole = useExperienceStore((s) => s.primaryRole);
+
+  // Deterministic fallback
+  const role = primaryRole ?? "observer";
+
   const { architectureFocus } =
     STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY];
 
