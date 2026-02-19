@@ -1,7 +1,7 @@
 // apps/website/src/_components/ArchitectureSection.tsx
 "use client";
 
-import { useSafeStore } from "../_store/useExperienceStore";
+import { useSafeExperienceStore } from "../_store/useExperienceStore";
 import { STAKEHOLDER_COPY } from "../_lib/stakeholder-content";
 import { motion } from "framer-motion";
 import {
@@ -12,6 +12,29 @@ import {
   Search,
   RotateCcw,
 } from "lucide-react";
+
+/**
+ * Design reasoning:
+ * This component reads stakeholder context safely from a persisted Zustand store
+ * while avoiding hydration mismatch. It renders deterministic architecture messaging
+ * based on role, defaulting to "observer" during first render.
+ *
+ * Structure:
+ * - ARCH_LAYERS static config
+ * - Safe store selector
+ * - Role-resolved stakeholder copy
+ * - Left: architecture engine
+ * - Right: contextual explanation
+ *
+ * Implementation guidance:
+ * - Always use useSafeExperienceStore in client components
+ * - Guard against null before accessing state
+ * - Never assume store hydration is complete on first render
+ *
+ * Scalability insight:
+ * If architecture layers become dynamic, extract ARCH_LAYERS into a shared
+ * domain config and version it alongside backend lifecycle layers.
+ */
 
 const ARCH_LAYERS = [
   {
@@ -53,19 +76,26 @@ const ARCH_LAYERS = [
 ];
 
 export default function ArchitectureSection() {
-  const role = useSafeStore((s) => s.primaryRole) || "observer";
-  const { architectureFocus } =
-    STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY];
+  const roleFromStore = useSafeExperienceStore((state) => state.primaryRole);
+
+  // Fallback before hydration completes
+  const role = roleFromStore ?? "observer";
+
+  const stakeholder =
+    STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY] ??
+    STAKEHOLDER_COPY["observer"];
+
+  const { architectureFocus } = stakeholder;
 
   return (
     <section className="py-32 bg-black border-t border-slate-900 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid lg:grid-cols-12 gap-16 items-start">
-          {/* Left: The 6-Layer Engine */}
+          {/* Left */}
           <div className="lg:col-span-7 space-y-12">
             <header className="space-y-4">
               <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter">
-                Infrastructure-Level <br />{" "}
+                Infrastructure-Level <br />
                 <span className="text-blue-600">Governance.</span>
               </h2>
               <p className="text-slate-500 text-lg max-w-xl">
@@ -100,7 +130,7 @@ export default function ArchitectureSection() {
             </div>
           </div>
 
-          {/* Right: Stakeholder-Specific "Why It Matters" */}
+          {/* Right */}
           <div className="lg:col-span-5 lg:sticky lg:top-32">
             <motion.div
               key={role}
@@ -108,7 +138,6 @@ export default function ArchitectureSection() {
               animate={{ opacity: 1, scale: 1 }}
               className="p-10 rounded-[2.5rem] glass-card border-blue-500/10 relative overflow-hidden"
             >
-              {/* Animated Accent */}
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-30" />
 
               <div className="space-y-6">
@@ -118,7 +147,7 @@ export default function ArchitectureSection() {
 
                 <h3 className="text-2xl font-bold text-white">
                   Why This Matters for{" "}
-                  {role === "observer" ? "Your Institution" : role + "s"}
+                  {role === "observer" ? "Your Institution" : `${role}s`}
                 </h3>
 
                 <p className="text-slate-400 leading-relaxed italic">

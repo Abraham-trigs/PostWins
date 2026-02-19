@@ -1,24 +1,40 @@
 // apps/website/src/_components/VariantBoundary.tsx
 "use client";
 
-import { useSafeStore } from "../_store/useExperienceStore";
 import { ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSafeExperienceStore } from "../_store/useExperienceStore";
+
+/**
+ * Design reasoning:
+ * VariantBoundary deterministically swaps UI clusters based on
+ * persisted stakeholder identity. It must avoid hydration mismatch,
+ * prevent early redirects, and never assume store state is ready.
+ *
+ * Structure:
+ * - Safe store selectors
+ * - Hydration guard
+ * - Deterministic variant map
+ * - Animated transition wrapper
+ *
+ * Implementation guidance:
+ * - Never branch on store values before hydration resolves
+ * - Avoid dynamic key access without defensive fallback
+ *
+ * Scalability insight:
+ * If stakeholder roles expand, convert variants to a strongly typed
+ * enum-backed mapping instead of string indexing.
+ */
 
 interface VariantProps {
   donor?: ReactNode;
   regulator?: ReactNode;
   operator?: ReactNode;
   technical?: ReactNode;
-  observer?: ReactNode; // Added for growth
+  observer?: ReactNode;
   fallback: ReactNode;
 }
 
-/**
- * PRODUCTION-GRADE VARIANT BOUNDARY
- * Deterministically swaps UI clusters based on persisted stakeholder state.
- * Prevents hydration mismatch and enforces smooth state transitions.
- */
 export default function VariantBoundary({
   donor,
   regulator,
@@ -27,16 +43,20 @@ export default function VariantBoundary({
   observer,
   fallback,
 }: VariantProps) {
-  const role = useSafeStore((s) => s.primaryRole);
-  const isComplete = useSafeStore((s) => s.hasCompletedSurvey);
+  const role = useSafeExperienceStore((s) => s.primaryRole);
+  const isComplete = useSafeExperienceStore((s) => s.hasCompletedSurvey);
 
-  // 1. Static Fallback for initial server render / unpersonalized state
+  // Wait for hydration
+  if (role === null || isComplete === null) {
+    return <div className="animate-fade-in">{fallback}</div>;
+  }
+
+  // If survey incomplete or role missing → fallback
   if (!isComplete || !role) {
     return <div className="animate-fade-in">{fallback}</div>;
   }
 
-  // 2. Deterministic Mapping (Replaces eval)
-  const variants: Record<string, ReactNode> = {
+  const variants: Record<string, ReactNode | undefined> = {
     donor,
     regulator,
     operator,
@@ -44,7 +64,7 @@ export default function VariantBoundary({
     observer,
   };
 
-  const activeContent = variants[role] || fallback;
+  const activeContent = variants[role] ?? fallback;
 
   return (
     <AnimatePresence mode="wait">
@@ -55,11 +75,10 @@ export default function VariantBoundary({
         exit={{ opacity: 0, y: -15 }}
         transition={{
           duration: 0.5,
-          ease: [0.22, 1, 0.36, 1], // Custom "Governance" ease-out
+          ease: [0.22, 1, 0.36, 1],
         }}
         className="relative"
       >
-        {/* Visual Cue: Stakeholder State Active */}
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-20 pointer-events-none">
           <div className="h-px w-32 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-shimmer" />
         </div>

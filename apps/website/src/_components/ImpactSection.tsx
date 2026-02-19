@@ -1,18 +1,43 @@
 // apps/website/src/_components/ImpactSection.tsx
 "use client";
 
-import { useSafeStore } from "../_store/useExperienceStore";
+import { useSafeExperienceStore } from "../_store/useExperienceStore";
 import { STAKEHOLDER_COPY } from "../_lib/stakeholder-content";
 import { motion } from "framer-motion";
 import { Zap, Shield, Target } from "lucide-react";
 
+/**
+ * Design reasoning:
+ * This section adapts messaging based on persisted stakeholder identity.
+ * It must be hydration-safe and resilient if store data is temporarily null.
+ *
+ * Structure:
+ * - Safe role selector
+ * - Defensive stakeholder resolution
+ * - Structured impact grid
+ *
+ * Implementation guidance:
+ * - Always guard against null from useSafeExperienceStore
+ * - Never assume stakeholder key exists
+ *
+ * Scalability insight:
+ * If transitions become backend-driven, inject them as structured
+ * typed contracts rather than free-form arrays.
+ */
+
 export default function ImpactSection() {
-  const role = useSafeStore((s) => s.primaryRole) || "observer";
-  const { solution } = STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY];
+  const roleFromStore = useSafeExperienceStore((s) => s.primaryRole);
+
+  const role = roleFromStore ?? "observer";
+
+  const stakeholder =
+    STAKEHOLDER_COPY[role as keyof typeof STAKEHOLDER_COPY] ??
+    STAKEHOLDER_COPY["observer"];
+
+  const { solution } = stakeholder;
 
   return (
     <section className="py-32 bg-slate-950 relative overflow-hidden">
-      {/* Background Decorative Blur */}
       <div className="absolute top-1/2 left-0 w-64 h-64 bg-blue-600/10 blur-[120px] -translate-y-1/2" />
 
       <div className="max-w-6xl mx-auto px-6 relative z-10">
@@ -39,9 +64,11 @@ export default function ImpactSection() {
                 {i === 1 && <Shield size={24} />}
                 {i === 2 && <Zap size={24} />}
               </div>
+
               <h4 className="text-xl font-bold text-white uppercase tracking-tighter">
                 {trait}
               </h4>
+
               <p className="text-sm text-slate-500 font-mono">
                 ENFORCED BY DETERMINISTIC <br /> LIFECYCLE ENGINE
               </p>
@@ -53,8 +80,8 @@ export default function ImpactSection() {
           <p className="text-slate-500 font-mono text-[11px] uppercase tracking-[0.4em] mb-8">
             Impact is measurable because it is structural.
           </p>
+
           <div className="flex flex-wrap justify-center gap-12 opacity-40 grayscale hover:grayscale-0 transition-all duration-700">
-            {/* Replace with actual partner/donor logos later */}
             <span className="text-xl font-black text-white tracking-widest italic uppercase">
               UN-GOVERNED
             </span>
