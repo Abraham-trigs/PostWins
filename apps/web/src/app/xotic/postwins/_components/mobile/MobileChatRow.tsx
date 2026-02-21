@@ -1,11 +1,23 @@
 import Link from "next/link";
+import type { CaseListItem } from "@/lib/api/cases.api";
 
 type Props = {
+  caseItem: CaseListItem;
   href?: string;
   compact?: boolean;
 };
 
-export function MobileChatRow({ href, compact }: Props) {
+export function MobileChatRow({ caseItem, href, compact }: Props) {
+  const { id, lifecycle, summary, createdAt, lastMessage } = caseItem;
+
+  const preview =
+    lastMessage?.body ??
+    (lastMessage ? `[${lastMessage.type}]` : (summary ?? "No activity yet"));
+
+  const timeLabel = new Date(
+    lastMessage?.createdAt ?? createdAt,
+  ).toLocaleDateString();
+
   const Row = (
     <div
       className={[
@@ -14,19 +26,21 @@ export function MobileChatRow({ href, compact }: Props) {
         compact ? "py-[var(--xotic-pad-2)]" : "py-[var(--xotic-pad-3)]",
       ].join(" ")}
     >
-      {/* avatar */}
+      {/* avatar placeholder */}
       <div className="h-12 w-12 rounded-full bg-surface-muted border border-line flex-shrink-0" />
 
-      {/* text blocks */}
+      {/* text */}
       <div className="min-w-0 flex-1">
-        <div className="h-4 w-40 max-w-[70%] rounded bg-surface-muted border border-line" />
-        <div className="mt-2 h-3 w-56 max-w-[85%] rounded bg-surface-muted border border-line" />
+        <div className="text-sm font-medium text-ink truncate">
+          Case {id.slice(0, 6)} • {lifecycle}
+        </div>
+
+        <div className="mt-1 text-xs text-ink/70 truncate">{preview}</div>
       </div>
 
-      {/* time / badge */}
-      <div className="flex flex-col items-end gap-2 flex-shrink-0">
-        <div className="h-3 w-10 rounded bg-surface-muted border border-line" />
-        <div className="h-5 w-5 rounded-full bg-surface-muted border border-line" />
+      {/* time */}
+      <div className="flex flex-col items-end flex-shrink-0 text-xs text-ink/60">
+        <span>{timeLabel}</span>
       </div>
     </div>
   );
@@ -36,7 +50,7 @@ export function MobileChatRow({ href, compact }: Props) {
   return (
     <Link
       href={href}
-      aria-label="Open chat"
+      aria-label={`Open case ${id}`}
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {Row}

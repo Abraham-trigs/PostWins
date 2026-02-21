@@ -17,13 +17,8 @@ import type {
 export type CaseListItem = {
   id: string;
 
-  /** ✅ Authoritative */
   lifecycle: CaseLifecycle;
-
-  /** ⚠️ Advisory (UI / ops only) */
   status: CaseStatus;
-
-  /** ⚠️ Advisory decision metadata */
   routingOutcome: RoutingOutcome;
 
   type: CaseType;
@@ -34,6 +29,13 @@ export type CaseListItem = {
 
   createdAt: string;
   updatedAt: string;
+
+  // 🔥 NEW
+  lastMessage?: {
+    body: string | null;
+    type: string;
+    createdAt: string;
+  } | null;
 };
 
 function getTenantId(): string {

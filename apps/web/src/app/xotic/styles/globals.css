@@ -141,6 +141,21 @@
   border-color: var(--color-red);
 }
 
+@layer utilities {
+  /* 
+     Offsets the scroll position so the target 
+     isn't stuck to the very top of the screen.
+  */
+  .scroll-section-offset {
+    scroll-margin-top: 120px; /* Adjust based on your header height */
+  }
+
+  /* Smooth transition for the ring highlight */
+  .highlight-ring {
+    @apply ring-2 ring-ocean ring-offset-2 transition-all duration-500;
+  }
+}
+
 /* ==========================================================================
    Scrollbar Control
    ========================================================================== */

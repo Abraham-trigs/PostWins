@@ -1,13 +1,30 @@
-// src/app/xotic/postwins/_components/chat/store/usePostWinStore.ts
-// Purpose: Root PostWin store — composes all slices into a single Zustand store with devtools support.
-
 "use client";
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
+import { fetchMessagesByCase } from "@/lib/api/message";
+import type { ThreadMessage } from "./types";
+
+/* ===================== Slice Types ===================== */
+import type { TimelineSlice } from "./postwins/slices/timeline.slice";
+
+/* ===================== Root State ===================== */
+
+export type PostWinState = TimelineSlice & {
+  lifecycle: any;
+  questionnaire: any;
+  draft: any;
+  delivery: any;
+  composer: any;
+  submission: any;
+
+  currentUserId: string | null;
+  setCurrentUserId: (id: string) => void;
+
+  fetchMessages: (tenantId: string, caseId: string) => Promise<void>;
+};
 
 /* ===================== Slices ===================== */
-
 import { createLifecycleSlice } from "./postwins/slices/lifecycle.slice";
 import { createTimelineSlice } from "./postwins/slices/timeline.slice";
 import { createQuestionnaireSlice } from "./postwins/slices/questionnaire.slice";
@@ -16,85 +33,46 @@ import { createDeliverySlice } from "./postwins/slices/delivery.slice";
 import { createComposerSlice } from "./postwins/slices/composer.slice";
 import { createSubmissionSlice } from "./postwins/slices/submission.slice";
 
-/* =========================================================
-   Assumptions
-   ---------------------------------------------------------
-   - types.ts remains at:
-     src/app/xotic/postwins/_components/chat/store/types.ts
-   - No external file imports internal slice paths.
-   - Existing UI imports from this file remain unchanged.
-========================================================= */
-
-/* =========================================================
-   Design reasoning
-   ---------------------------------------------------------
-   This file composes all PostWin slices into one unified store.
-
-   Key properties:
-   - Single Zustand store instance.
-   - Devtools preserved.
-   - No behavior change.
-   - Cross-slice communication occurs only via get().
-   - Slices remain domain-isolated.
-
-   The root store does NOT contain logic.
-   It only merges slice outputs.
-========================================================= */
-
-/* =========================================================
-   Structure
-   ---------------------------------------------------------
-   - usePostWinStore (exported hook)
-   - Composes:
-       lifecycle
-       timeline
-       questionnaire
-       draft
-       delivery
-       composer
-       submission
-========================================================= */
-
-export const usePostWinStore = create<any>()(
+export const usePostWinStore = create<PostWinState>()(
   devtools(
-    (set, get) => ({
-      /* Order does not affect runtime,
-         but grouping improves readability */
+    (set, get, ...a) => ({
+      ...createLifecycleSlice(set, get, ...a),
+      ...createTimelineSlice(set, get, ...a),
+      ...createQuestionnaireSlice(set, get, ...a),
+      ...createDraftSlice(set, get, ...a),
+      ...createDeliverySlice(set, get, ...a),
+      ...createComposerSlice(set, get, ...a),
+      ...createSubmissionSlice(set, get, ...a),
 
-      ...createLifecycleSlice(set, get),
-      ...createTimelineSlice(set, get),
-      ...createQuestionnaireSlice(set, get),
-      ...createDraftSlice(set, get),
-      ...createDeliverySlice(set, get),
-      ...createComposerSlice(set, get),
-      ...createSubmissionSlice(set, get),
+      /* ===================== Thread Identity ===================== */
+
+      currentUserId: null,
+
+      setCurrentUserId: (id) =>
+        set({ currentUserId: id }, false, "setCurrentUserId"),
+
+      /* ===================== Fetch Thread ===================== */
+
+      fetchMessages: async (tenantId, caseId) => {
+        try {
+          set({ isLoading: true }, false, "timeline/loading");
+
+          const messages = await fetchMessagesByCase(tenantId, caseId);
+
+          set(
+            { messages: messages as ThreadMessage[], isLoading: false },
+            false,
+            "timeline/setFromServer",
+          );
+        } catch (error) {
+          console.error("Failed to fetch messages", error);
+          set({ isLoading: false }, false, "timeline/error");
+        }
+      },
     }),
-    { name: "PostWins" },
+    {
+      name: "PostWins",
+      enabled: process.env.NODE_ENV === "development",
+    },
   ),
 );
-
-/* =========================================================
-   Implementation guidance
-   ---------------------------------------------------------
-   - No UI changes required.
-   - All existing component calls remain valid.
-   - Devtools name preserved ("PostWins").
-   - Safe to delete original monolithic store file.
-
-   If TypeScript strict typing is desired:
-   - Replace <any> with a composed RootState type.
-   - Export RootState for test isolation.
-========================================================= */
-
-/* =========================================================
-   Scalability insight
-   ---------------------------------------------------------
-   If PostWins expands (offline replay, audit trail,
-   server sync reconciliation), new slices can be added
-   without modifying existing ones.
-
-   This structure supports:
-   - Feature toggles
-   - Slice-level testing
-   - Future migration to Zustand store splitting per feature
-========================================================= */
