@@ -1,66 +1,66 @@
-export type ChatRole = "user" | "system";
+// src/app/xotic/postwins/_components/chat/store/types.ts
+// Authoritative thread types aligned with backend Message model
+
+//  later  reintroduce in-chat form blocks, do it in
+// a separate projection layer — not inside the authoritative
+//  message union.
+
+/* =========================================================
+   Backend Message (Authoritative Thread)
+========================================================= */
+
+export type MessageType =
+  | "DISCUSSION"
+  | "FOLLOW_UP"
+  | "VERIFICATION_REQUEST"
+  | "COUNTER_CLAIM"
+  | "EVIDENCE_SUBMISSION";
+
+export type NavigationContext = {
+  target: "TASK" | "MESSAGE" | "EXTERNAL";
+  id: string;
+  params?: {
+    highlight?: boolean;
+    focus?: boolean;
+    mode?: "peek" | "full";
+  };
+  label?: string;
+};
+
+export type ThreadMessage = {
+  id: string;
+  tenantId: string;
+  caseId: string;
+  authorId: string;
+  parentId: string | null;
+  type: MessageType;
+  body: string | null;
+  navigationContext: NavigationContext | null;
+  metadata: Record<string, unknown> | null;
+  isInternal: boolean;
+  createdAt: string;
+};
+
+/* =========================================================
+   Composer
+========================================================= */
 
 export type ComposerMode = "record" | "followup" | "verify" | "delivery";
+
+/* =========================================================
+   Evidence
+========================================================= */
 
 export type EvidenceKind = "image" | "video" | "document" | "audio";
 
 export type EvidenceFile = {
-  id: string; // kind:name:size:lastModified (stable de-dupe key)
+  id: string;
   kind: EvidenceKind;
   file: File;
 };
 
 /* =========================================================
-   Chat Messages
-========================================================= */
-
-export type EventMessage = {
-  id: string;
-  kind: "event";
-  title: string;
-  meta: string;
-  status: "logged" | "pending" | "failed";
-  createdAt: string;
-  key?: string;
-};
-
-export type ChatMessage =
-  | {
-      id: string;
-      kind: "text";
-      role: ChatRole;
-      text: string;
-      createdAt: string;
-      mode: ComposerMode;
-    }
-  | EventMessage
-  | {
-      id: string;
-      kind: "form_block";
-      /**
-       * `step` is the single source of truth
-       * for which in-chat form/questionnaire UI to render.
-       */
-      step: // legacy / existing intake steps
-        | "postwin_narrative"
-        | "beneficiary"
-        | "category_location"
-        | "evidence"
-        | "review"
-
-        // questionnaire-driven steps (chat-native)
-        | "step1_location";
-      createdAt: string;
-    }
-  | {
-      id: string;
-      kind: "action_row";
-      actions: Array<{ id: string; label: string; value: string }>;
-      createdAt: string;
-    };
-
-/* =========================================================
-   Drafts (local UI state, not backend truth)
+   Drafts (local UI state only — NOT thread)
 ========================================================= */
 
 export type PostWinDraft = {
@@ -75,7 +75,7 @@ export type PostWinDraft = {
 };
 
 /* =========================================================
-   Delivery
+   Delivery Draft
 ========================================================= */
 
 export type DeliveryItem = {
@@ -90,39 +90,10 @@ export type DeliveryDraft = {
 };
 
 /* =========================================================
-   Questionnaire (chat-native intake)
-========================================================= */
-
-export type QuestionnaireStep = "step1_location" | "step2" | "review" | "done";
-
-export type LocationAnswer = {
-  digitalAddress: string;
-  lat?: number;
-  lng?: number;
-  bounds?: any;
-};
-
-export type BeneficiaryAnswer = {
-  beneficiaryType: "individual" | "group" | "community" | "organization";
-  beneficiaryName?: string;
-};
-
-export type QuestionnaireAnswers = {
-  location?: LocationAnswer;
-  beneficiary?: BeneficiaryAnswer;
-};
-
-/* =========================================================
-   Backend identifiers (resolved later)
+   Backend identifiers
 ========================================================= */
 
 export type PostWinIds = {
   projectId: string | null;
   postWinId: string | null;
 };
-
-/**
- * Utility: all possible in-chat intake steps
- * (keeps renderers type-safe)
- */
-export type IntakeStep = Extract<ChatMessage, { kind: "form_block" }>["step"];
