@@ -1,5 +1,5 @@
 // src/app/xotic/postwins/_components/chat/store/postwins/slices/timeline.slice.ts
-// Purpose: Manage Signal-driven UX with Optimistic UI, Ghost Reconciliation, and Deduplication.
+// Purpose: Deterministic Optimistic Timeline using clientMutationId reconciliation.
 
 import type { StateCreator } from "zustand";
 import type { BackendMessage } from "@/lib/api/message";
@@ -7,16 +7,17 @@ import type { BackendMessage } from "@/lib/api/message";
 /* =========================================================
    Design reasoning
    ---------------------------------------------------------
-   This slice provides:
-   - Optimistic "ghost" message support
-   - Deterministic reconciliation when server truth arrives
-   - Protection against duplicate socket/API collisions
-   - Safe rollback when network fails
+   This slice provides fully deterministic optimistic UI:
 
-   Reconciliation logic:
-   - Matches ghost by author + body
-   - Only within a 5-minute window
-   - Avoids server/client clock skew issues
+   - Ghost messages carry clientMutationId
+   - Server returns same clientMutationId
+   - Reconciliation swaps atomically by mutationId
+   - No content heuristics
+   - No timestamp comparison
+   - No clock skew risk
+
+   All transport paths (Optimistic, REST, WebSocket)
+   converge through appendMessage().
 ========================================================= */
 
 /* =========================================================
@@ -32,12 +33,19 @@ export type TimelineSlice = {
   isLoading: boolean;
 
   setMessages: (messages: BackendMessage[]) => void;
+
+  /**
+   * Atomic append with mutationId reconciliation.
+   */
   appendMessage: (message: BackendMessage) => void;
-  rollbackMessage: (tempId: string) => void;
+
+  /**
+   * Removes ghost by clientMutationId.
+   */
+  rollbackMessage: (mutationId: string) => void;
+
   clearMessages: () => void;
 };
-
-const GHOST_RECONCILIATION_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 export const createTimelineSlice: StateCreator<
   TimelineSlice,
@@ -54,33 +62,29 @@ export const createTimelineSlice: StateCreator<
   setMessages: (messages) => set({ messages }, false, "timeline/setMessages"),
 
   /* =========================================================
-     Append Message (Optimistic-safe + Deduplication)
+     Atomic Append with Deterministic Reconciliation
   ========================================================= */
   appendMessage: (incoming) =>
     set(
       (state) => {
-        // 1️⃣ Exact ID dedupe (server/socket collision safe)
-        if (state.messages.some((m) => m.id === incoming.id)) {
-          return state;
+        // 1️⃣ Precise Reconciliation via clientMutationId
+        if (incoming.clientMutationId) {
+          const ghostIndex = state.messages.findIndex(
+            (m) =>
+              m.clientMutationId &&
+              m.clientMutationId === incoming.clientMutationId,
+          );
+
+          if (ghostIndex !== -1) {
+            const updated = [...state.messages];
+            updated[ghostIndex] = incoming; // Atomic swap
+            return { messages: updated };
+          }
         }
 
-        // 2️⃣ Ghost reconciliation
-        const ghostIndex = state.messages.findIndex((m) => {
-          if (!m.id.startsWith("ghost-")) return false;
-          if (m.authorId !== incoming.authorId) return false;
-          if (m.body !== incoming.body) return false;
-
-          const ghostTime = new Date(m.createdAt).getTime();
-          const now = Date.now();
-
-          // Only reconcile recent ghosts
-          return now - ghostTime < GHOST_RECONCILIATION_WINDOW_MS;
-        });
-
-        if (ghostIndex !== -1) {
-          const updated = [...state.messages];
-          updated[ghostIndex] = incoming;
-          return { messages: updated };
+        // 2️⃣ Strict ID deduplication (REST + Socket collision safe)
+        if (state.messages.some((m) => m.id === incoming.id)) {
+          return state;
         }
 
         // 3️⃣ Normal append
@@ -93,12 +97,14 @@ export const createTimelineSlice: StateCreator<
     ),
 
   /* =========================================================
-     Rollback (Network Failure)
+     Rollback Ghost (Network Failure)
   ========================================================= */
-  rollbackMessage: (tempId) =>
+  rollbackMessage: (mutationId) =>
     set(
       (state) => ({
-        messages: state.messages.filter((m) => m.id !== tempId),
+        messages: state.messages.filter(
+          (m) => m.clientMutationId !== mutationId,
+        ),
       }),
       false,
       "timeline/rollbackMessage",
@@ -112,25 +118,27 @@ export const createTimelineSlice: StateCreator<
 
 /* =========================================================
    Implementation guidance
-   - Ghost IDs must be prefixed with "ghost-"
-   - Ghost createdAt must be client timestamp
-   - Server messages must return ISO createdAt
-   - Socket messages can safely call appendMessage()
+   ---------------------------------------------------------
+   Requirements:
+   - Composer must generate clientMutationId
+   - Ghost message must include clientMutationId
+   - Backend must persist and return clientMutationId
+   - WebSocket must emit message with clientMutationId
 
-   This slice assumes:
-   - createMessage() returns BackendMessage
-   - optimistic UI inserts ghost before network call
+   Example:
+   const clientMutationId = crypto.randomUUID();
 ========================================================= */
 
 /* =========================================================
    Scalability insight
-   This design supports:
-   - WebSocket streaming
-   - Pagination extension
-   - Infinite scroll hydration
-   - Retry + resend UX
-   - Event-sourced reconstruction
+   ---------------------------------------------------------
+   This enables:
+   - Infinite scroll
+   - Streaming updates
+   - Offline queue replay
+   - Message retries
+   - Exactly-once UI semantics
 
-   For absolute determinism, upgrade to clientMutationId
-   instead of heuristic body matching.
+   This is the same mutation reconciliation pattern
+   used by Relay and Stripe APIs.
 ========================================================= */

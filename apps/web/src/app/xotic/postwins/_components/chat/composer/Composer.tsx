@@ -1,5 +1,5 @@
 // src/app/xotic/postwins/_components/chat/composer/Composer.tsx
-// Purpose: Pure stateless Composer that emits navigation-aware workflow signals.
+// Purpose: Deterministic optimistic Composer using clientMutationId lifecycle.
 
 "use client";
 
@@ -14,10 +14,11 @@ import {
   createMessage,
   type BackendMessageType,
   type BackendNavigationContext,
+  type BackendMessage,
 } from "@/lib/api/message";
 
 /* =========================================================
-   Tenant Resolution (Shared Strategy)
+   Tenant Resolution
 ========================================================= */
 
 function getTenantId(): string {
@@ -26,20 +27,18 @@ function getTenantId(): string {
       ? (process.env.NEXT_PUBLIC_TENANT_ID ?? "")
       : "";
 
-  if (envTenant && envTenant.trim()) return envTenant.trim();
+  if (envTenant.trim()) return envTenant.trim();
 
   if (typeof window !== "undefined") {
     const ls = window.localStorage.getItem("posta.tenantId");
-    if (ls && ls.trim()) return ls.trim();
+    if (ls?.trim()) return ls.trim();
   }
 
-  throw new Error(
-    "Missing tenantId. Set NEXT_PUBLIC_TENANT_ID or localStorage posta.tenantId",
-  );
+  throw new Error("Missing tenantId");
 }
 
 /* =========================================================
-   Mode → Backend Type Mapping
+   Mode Mapping
 ========================================================= */
 
 function mapModeToMessageType(mode: string): BackendMessageType {
@@ -67,14 +66,17 @@ export function Composer() {
   const setComposerMode = usePostWinStore((s) => s.setComposerMode);
   const setComposerText = usePostWinStore((s) => s.setComposerText);
   const clearComposer = usePostWinStore((s) => s.clearComposer);
+
   const appendMessage = usePostWinStore((s) => s.appendMessage);
+  const rollbackMessage = usePostWinStore((s) => s.rollbackMessage);
 
   const caseId = usePostWinStore((s) => (s as any).ids?.projectId);
   const currentUserId = usePostWinStore((s) => s.currentUserId);
 
-  /* ===================== UI Logic ===================== */
+  /* ===================== UI ===================== */
 
   const { attachOpen, setAttachOpen, attachWrapRef } = useAttachmentPicker();
+
   const copy = useMemo(() => getModeCopy(mode), [mode]);
   const { placeholder, modeLabel } = copy;
 
@@ -95,35 +97,64 @@ export function Composer() {
     };
   }
 
+  /* =========================================================
+     Deterministic Submit
+  ========================================================= */
+
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
 
     const trimmed = text.trim();
     if (!trimmed || !caseId || !currentUserId) return;
 
-    try {
-      const tenantId = getTenantId();
+    const mutationId = crypto.randomUUID(); // ⚡ deterministic token
+    const tenantId = getTenantId();
 
-      const backendMessage = await createMessage({
+    const optimisticMessage: BackendMessage = {
+      id: mutationId, // temp ID
+      clientMutationId: mutationId,
+      tenantId,
+      caseId,
+      authorId: currentUserId,
+      type: mapModeToMessageType(mode),
+      body: trimmed,
+      parentId: null,
+      navigationContext: buildNavigationContext(),
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      // 1️⃣ Optimistic insert
+      appendMessage(optimisticMessage);
+      clearComposer();
+
+      // 2️⃣ Network call
+      const serverMessage = await createMessage({
         tenantId,
         caseId,
         authorId: currentUserId,
-        type: mapModeToMessageType(mode),
+        type: optimisticMessage.type,
         body: trimmed,
         parentId: null,
-        navigationContext: buildNavigationContext(),
+        navigationContext: optimisticMessage.navigationContext,
+        clientMutationId: mutationId,
       });
 
-      appendMessage(backendMessage);
-      clearComposer();
+      // 3️⃣ Deterministic reconciliation (atomic swap)
+      appendMessage(serverMessage);
     } catch (err) {
-      console.error("Signal emission failed", err);
+      console.error("Message failed, rolling back", err);
+
+      // 4️⃣ Rollback ghost
+      rollbackMessage(mutationId);
+
+      // Restore input
+      setComposerText(trimmed);
     }
   };
 
   return (
     <footer className="h-[var(--xotic-composer-h)] px-[var(--xotic-pad-6)] flex items-center gap-3 bg-paper border-t border-line/50">
-      {/* Mode Tabs */}
       <div className="flex items-center gap-2 rounded-full p-1 bg-surface-strong border border-line/50">
         <div role="tablist" className="flex items-center">
           <ModeTab
@@ -147,7 +178,6 @@ export function Composer() {
         </div>
       </div>
 
-      {/* Input */}
       <div className="min-w-0 flex-1">
         <div className="relative" ref={attachWrapRef}>
           <button
@@ -171,11 +201,10 @@ export function Composer() {
         </div>
 
         <div className="mt-1 px-3 text-[10px] uppercase tracking-wider font-semibold text-ink/60">
-          {modeLabel} • Audit-first • Signal-aware
+          {modeLabel} • Deterministic • Mutation-safe
         </div>
       </div>
 
-      {/* Send */}
       <button
         type="button"
         disabled={!canSubmit || submitting}

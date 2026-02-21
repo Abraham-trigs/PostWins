@@ -33,6 +33,7 @@ export type BackendMessage = {
   caseId: string;
   authorId: string;
   type: BackendMessageType;
+  clientMutationId: string | null; // ⚡️ The correlation token
   body: string | null;
   parentId: string | null;
   navigationContext: BackendNavigationContext | null;
