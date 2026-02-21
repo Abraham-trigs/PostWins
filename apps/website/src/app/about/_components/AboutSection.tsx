@@ -32,8 +32,12 @@ export default function AboutSection() {
         {/* 1. THE PREMISE */}
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8">
-            <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter leading-tight">
-              About <span className="text-blue-600">PostWins.</span>
+            <h2 className="text-4xl md:text-6xl font-black text-shadow-neutral-200 tracking-tighter leading-tight">
+              <span className="">About</span>{" "}
+              <span className="text-shadow-neutral-200 text-blue-900   font-medium">
+                Post<span className="text-indigo-200">W</span>
+                <span>ins.</span>
+              </span>
             </h2>
             <div className="space-y-4 text-xl text-slate-400 leading-relaxed italic border-l-4 border-blue-600 pl-8 py-2">
               <p>
@@ -76,11 +80,14 @@ export default function AboutSection() {
         {/* 2. THE PHILOSOPHY (Stakeholder Aware) */}
         <div className="space-y-12">
           <div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold text-white tracking-tight underline decoration-blue-600 underline-offset-8">
+            <h2 className="text-3xl font-blackss text-white tracking-tight underline decoration-blue-600 underline-offset-4">
               Our Philosophy
             </h2>
-            <p className="text-slate-500 font-mono text-xs uppercase tracking-[0.4em]">
-              Governance Engineered, Not Assumed
+
+            <p className="text-slate-300  text-xs uppercase tracking-[0.4em]">
+              <span className="font-black">Impact Won</span>
+              <span className=" text-[#fb0000]">,</span> This is it
+              <span className="text-[#fb0000]">.</span>
             </p>
           </div>
 

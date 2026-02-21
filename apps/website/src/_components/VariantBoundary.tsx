@@ -80,7 +80,7 @@ export default function VariantBoundary({
         className="relative"
       >
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-20 pointer-events-none">
-          <div className="h-px w-32 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-shimmer" />
+          <div className="h-px w-32 bg-gradient-to-r from-transparent via-cyan-400 to-transparent animate-shimmer" />
         </div>
 
         {activeContent}

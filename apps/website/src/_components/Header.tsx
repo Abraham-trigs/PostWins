@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   useSafeExperienceStore,
   useExperienceStore,
 } from "../_store/useExperienceStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, RefreshCcw, ArrowRight, Menu, X, LogIn } from "lucide-react";
+import { RefreshCcw, ArrowRight, Menu, X, LogIn } from "lucide-react";
 
 export default function Header(): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
@@ -19,7 +20,6 @@ export default function Header(): JSX.Element {
   const role = useSafeExperienceStore((s) => s.primaryRole);
   const reset = useExperienceStore((s) => s.reset);
 
-  // Lock scroll when mobile menu is open
   useEffect(() => {
     if (isOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "unset";
@@ -42,7 +42,6 @@ export default function Header(): JSX.Element {
 
   return (
     <>
-      {/* BACKGROUND BLUR OVERLAY */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -59,13 +58,34 @@ export default function Header(): JSX.Element {
         <nav className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
           {/* BRAND & DESKTOP NAV */}
           <div className="flex items-center gap-6 lg:gap-12">
-            <Link href="/" className="flex items-center gap-3 group shrink-0">
-              <div className="p-2 bg-blue-600 rounded-lg group-hover:shadow-[0_0_20px_rgba(37,99,235,0.5)] transition-all">
-                <Shield className="h-5 w-5 text-white" />
+            <Link
+              href="/"
+              className="flex items-center gap-3 md:gap-4 group shrink-0 transition-all active:scale-[0.98]"
+            >
+              {/* LOGO MARK: Center-aligned container */}
+              {/* <div className="relative p-1.5 rounded-lg bg-slate-900/50 group-hover:shadow-[0_0_25px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center border border-slate-800">
+                <Image
+                  src="/postWins_logo_light.svg"
+                  alt="PostWins Icon"
+                  width={844}
+                  height={964}
+                  className="h-8 md:h-9 w-auto object-contain"
+                  priority
+                />
+              </div> */}
+
+              {/* LOGO TEXT: Removed pt-1 to fix the "hanging" look, used flex centering */}
+              <div className="flex items-center">
+                <Image
+                  src="/postWins_text_light.svg"
+                  alt="PostWins"
+                  width={978}
+                  height={523}
+                  className="h-5 md:h-9 w-auto object-contain brightness-100 group-hover:brightness-125 transition-all"
+                  priority
+                />
+                <span className="sr-only">PostWins</span>
               </div>
-              <span className="text-lg md:text-xl font-black tracking-tighter text-white uppercase italic">
-                PostWins
-              </span>
             </Link>
 
             <div className="hidden md:flex items-center gap-6 lg:gap-8">
@@ -87,7 +107,6 @@ export default function Header(): JSX.Element {
 
           {/* ACTIONS AREA */}
           <div className="flex items-center gap-2 md:gap-4">
-            {/* LOGIN - THE "MODERN WAY" (Glow & Icon) */}
             <Link
               href="/login"
               className="group flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white transition-all mr-2"
@@ -100,7 +119,6 @@ export default function Header(): JSX.Element {
               </span>
             </Link>
 
-            {/* STAKEHOLDER CONTEXT (TABLET+) */}
             <AnimatePresence mode="wait">
               {role && (
                 <motion.div
@@ -118,7 +136,7 @@ export default function Header(): JSX.Element {
                   </div>
                   <button
                     onClick={handleReset}
-                    className="p-1.5 hover:bg-slate-900 rounded-full text-slate-600 hover:text-blue-500"
+                    className="p-1.5 hover:bg-slate-900 rounded-full text-slate-600 hover:text-blue-500 transition-colors"
                   >
                     <RefreshCcw className="h-3.5 w-3.5" />
                   </button>
@@ -126,7 +144,6 @@ export default function Header(): JSX.Element {
               )}
             </AnimatePresence>
 
-            {/* REQUEST DEMO CTA */}
             <Link
               href="/request-demo"
               className="flex items-center gap-2 px-4 md:px-6 py-2.5 bg-blue-600 text-white rounded-full text-[10px] md:text-xs font-bold hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95 whitespace-nowrap"
@@ -135,7 +152,6 @@ export default function Header(): JSX.Element {
               <ArrowRight className="h-4 w-4" />
             </Link>
 
-            {/* MOBILE TOGGLE */}
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="md:hidden p-2 text-slate-400 hover:text-white"
@@ -149,14 +165,14 @@ export default function Header(): JSX.Element {
           </div>
         </nav>
 
-        {/* MOBILE OVERLAY MENU */}
+        {/* MOBILE MENU */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="fixed left-0 right-0 top-20 md:hidden border-b border-slate-800 bg-slate-950/95 backdrop-blur-xl z-50 shadow-2xl"
+              className="fixed left-0 right-0 top-20 md:hidden border-b border-slate-800 bg-slate-950/95 backdrop-blur-xl z-50 shadow-2xl overflow-y-auto max-h-[calc(100vh-5rem)]"
             >
               <div className="flex flex-col p-8 gap-8">
                 {NAV_LINKS.map((link) => (
@@ -174,7 +190,6 @@ export default function Header(): JSX.Element {
                 ))}
 
                 <div className="pt-8 border-t border-slate-900 flex flex-col gap-6">
-                  {/* MOBILE LOGIN */}
                   <Link
                     href="/login"
                     className="flex items-center gap-3 text-blue-400 font-bold uppercase tracking-widest"
