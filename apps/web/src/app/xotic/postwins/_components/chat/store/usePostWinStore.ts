@@ -21,6 +21,12 @@ export type PostWinState = TimelineSlice & {
   currentUserId: string | null;
   setCurrentUserId: (id: string) => void;
 
+  /* ===================== Unread State ===================== */
+
+  unreadByCase: Record<string, number>;
+  incrementUnread: (caseId: string, delta: number) => void;
+  resetUnread: (caseId: string) => void;
+
   fetchMessages: (tenantId: string, caseId: string) => Promise<void>;
 };
 
@@ -50,6 +56,34 @@ export const usePostWinStore = create<PostWinState>()(
 
       setCurrentUserId: (id) =>
         set({ currentUserId: id }, false, "setCurrentUserId"),
+
+      /* ===================== Unread State ===================== */
+
+      unreadByCase: {},
+
+      incrementUnread: (caseId, delta) =>
+        set(
+          (state) => ({
+            unreadByCase: {
+              ...state.unreadByCase,
+              [caseId]: (state.unreadByCase[caseId] ?? 0) + delta,
+            },
+          }),
+          false,
+          "unread/increment",
+        ),
+
+      resetUnread: (caseId) =>
+        set(
+          (state) => ({
+            unreadByCase: {
+              ...state.unreadByCase,
+              [caseId]: 0,
+            },
+          }),
+          false,
+          "unread/reset",
+        ),
 
       /* ===================== Fetch Thread ===================== */
 
