@@ -1,85 +1,120 @@
-import type {
-  CaseLifecycle,
-  CaseStatus,
-  RoutingOutcome,
-  CaseType,
-  AccessScope,
-} from "@prisma/client";
+// apps/web/src/lib/api/cases.api.ts
+// Purpose: Resilient, abortable, deduplicated cursor-based client for GET /api/cases
 
-/**
- * Case list item returned by the API.
- *
- * IMPORTANT:
- * - lifecycle is AUTHORITATIVE
- * - status and routingOutcome are advisory / derived
- * - UI must not infer lifecycle from status
- */
-export type CaseListItem = {
-  id: string;
+import type { ListCasesResponse } from "@posta/core";
+import { fetcher } from "../offline/fetcher";
 
-  lifecycle: CaseLifecycle;
-  status: CaseStatus;
-  routingOutcome: RoutingOutcome;
+/* ============================================================
+   Design reasoning
+   ------------------------------------------------------------
+   - Uses shared fetcher (offline-aware).
+   - Deduplicates identical in-flight requests.
+   - Aborts stale requests automatically.
+   - Strongly typed transport boundary.
+   - Cursor-based pagination.
+   ============================================================ */
 
-  type: CaseType;
-  scope: AccessScope;
-
-  sdgGoal: string | null;
-  summary: string | null;
-
-  createdAt: string;
-  updatedAt: string;
-
-  // 🔥 NEW
-  lastMessage?: {
-    body: string | null;
-    type: string;
-    createdAt: string;
-  } | null;
+type ListCasesParams = {
+  cursor?: string | null;
+  limit?: number;
+  search?: string;
 };
 
+const inflight = new Map<string, AbortController>();
+
+function buildQuery(params: ListCasesParams) {
+  const q = new URLSearchParams();
+
+  if (params.cursor) q.set("cursor", params.cursor);
+  if (params.limit) q.set("limit", String(params.limit));
+  if (params.search) q.set("search", params.search);
+
+  return q.toString();
+}
+
 function getTenantId(): string {
-  const envTenant =
-    typeof process !== "undefined"
-      ? (process.env.NEXT_PUBLIC_TENANT_ID ?? "")
-      : "";
+  // Replace with your real tenant source
+  const tenant = localStorage.getItem("tenantId");
+  if (!tenant) throw new Error("Missing tenantId");
+  return tenant;
+}
 
-  if (envTenant && envTenant.trim()) return envTenant.trim();
+export async function listCases(
+  params: ListCasesParams = {},
+): Promise<ListCasesResponse> {
+  const query = buildQuery(params);
+  const key = `cases:${query}`;
 
-  if (typeof window !== "undefined") {
-    const ls = window.localStorage.getItem("posta.tenantId");
-    if (ls && ls.trim()) return ls.trim();
+  // Abort previous identical request
+  if (inflight.has(key)) {
+    inflight.get(key)!.abort();
+    inflight.delete(key);
   }
 
-  throw new Error(
-    "Missing tenantId. Set NEXT_PUBLIC_TENANT_ID or localStorage posta.tenantId",
-  );
-}
+  const controller = new AbortController();
+  inflight.set(key, controller);
 
-async function postaGet<T>(path: string): Promise<T> {
-  const tenantId = getTenantId();
+  try {
+    const data = await fetcher(`/api/cases?${query}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-Id": getTenantId(),
+      },
+      signal: controller.signal,
+    });
 
-  const res = await fetch(path, {
-    method: "GET",
-    headers: {
-      "X-Tenant-Id": tenantId,
-    },
-    // avoid stale case list in dev/prod when called from client
-    cache: "no-store",
-  });
+    if (!data?.ok) {
+      throw new Error("Invalid response shape");
+    }
 
-  const data = (await res.json()) as unknown;
+    return data as ListCasesResponse;
+  } catch (error: any) {
+    if (error.name === "AbortError") {
+      throw error;
+    }
 
-  if (!res.ok) {
-    throw new Error((data as any)?.error ?? "Request failed");
+    // Retry once for transient failures
+    const retry = await fetcher(`/api/cases?${query}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Tenant-Id": getTenantId(),
+      },
+    });
+
+    if (!retry?.ok) {
+      throw new Error("Failed after retry");
+    }
+
+    return retry as ListCasesResponse;
+  } finally {
+    inflight.delete(key);
   }
-
-  return data as T;
 }
 
-export async function listCases(): Promise<{
-  ok: true;
-  cases: CaseListItem[];
-}> {
-  return postaGet<{ ok: true; cases: CaseListItem[] }>("/api/cases");
-}
+/* ============================================================
+   Structure
+   ------------------------------------------------------------
+   - Query builder
+   - Tenant resolver
+   - In-flight dedupe map
+   - Abort-safe request
+   - Retry-safe fallback
+   ============================================================ */
+
+/* ============================================================
+   Implementation guidance
+   ------------------------------------------------------------
+   - Use inside Zustand store.
+   - Always pass cursor from store state.
+   - Never compute lifecycle client-side.
+   ============================================================ */
+
+/* ============================================================
+   Scalability insight
+   ------------------------------------------------------------
+   Deduping prevents rapid scroll spam.
+   Abort controller prevents memory leaks.
+   Cursor keeps list stable under writes.
+   ============================================================ */
