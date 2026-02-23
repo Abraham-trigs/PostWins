@@ -1,40 +1,35 @@
 // apps/web/src/app/auth/login/page.tsx
-// Purpose: Tenant-scoped passwordless login page (dev-mode auto verify)
+// Purpose: Tenant-scoped passwordless login page with authenticated-user guard
 
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 
 /**
- * Design reasoning:
- * - Minimal surface.
- * - Uses existing theme tokens only.
- * - Mobile-first centered layout.
- * - No external state beyond auth store.
- * - Accessible form structure.
- *
- * Structure:
- * - LoginPage component
- * - Controlled inputs
- * - Submit handler
- *
- * Implementation guidance:
- * - Redirect to /xotic after login.
- * - Replace dev auto-verify later with email flow.
- *
- * Scalability insight:
- * - Can later split tenantSlug into subdomain detection.
- * - Can integrate rate-limit feedback.
+ * Assumptions:
+ * - isHydrated ensures store has resolved backend session.
+ * - isAuthenticated reflects DB-backed session state.
  */
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading, error, clearError } = useAuthStore();
+
+  const { login, loading, error, clearError, isAuthenticated, isHydrated } =
+    useAuthStore();
 
   const [email, setEmail] = useState("");
   const [tenantSlug, setTenantSlug] = useState("");
+
+  /**
+   * Redirect if already authenticated
+   */
+  useEffect(() => {
+    if (isHydrated && isAuthenticated) {
+      router.replace("/xotic");
+    }
+  }, [isHydrated, isAuthenticated, router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -42,9 +37,16 @@ export default function LoginPage() {
 
     await login(email, tenantSlug);
 
-    // optimistic redirect — backend is source of truth
-    router.push("/xotic");
+    // Only redirect if auth succeeded
+    const { isAuthenticated: authed } = useAuthStore.getState();
+
+    if (authed) {
+      router.replace("/xotic");
+    }
   }
+
+  // Prevent render flicker while hydrating
+  if (!isHydrated) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 bg-background">

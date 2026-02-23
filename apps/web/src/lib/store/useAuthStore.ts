@@ -1,5 +1,5 @@
 // apps/web/src/lib/store/useAuthStore.ts
-// Purpose: Client-side auth state manager (cookie-backed, identity-aware)
+// Purpose: Client-side auth state manager aligned with DB-backed kill-switch sessions
 
 "use client";
 
@@ -11,6 +11,13 @@ import {
   getCurrentUser,
 } from "@/lib/api/auth.api";
 import type { AuthUser } from "@/lib/api/contracts/domain/auth.types";
+
+/**
+ * Assumptions:
+ * - Backend invalidates sessions via revokedAt.
+ * - getCurrentUser() throws on revoked/expired session.
+ * - Cookies are HttpOnly; no token stored client-side.
+ */
 
 type AuthState = {
   loading: boolean;
@@ -28,14 +35,27 @@ type AuthState = {
 };
 
 /**
- * Design evolution:
- * - Cookie-based auth → no token storage.
- * - Identity is fetched via /api/auth/me.
- * - isAuthenticated derived from user presence.
- * - Hydration ensures consistency after refresh.
+ * Design reasoning:
+ * - Identity comes ONLY from backend.
+ * - 401 after refresh = kill-switch → force logout state.
+ * - Cross-tab logout via localStorage broadcast.
+ * - Hydration is idempotent and safe.
  *
- * Server remains source of truth.
+ * Structure:
+ * - login()
+ * - logout()
+ * - hydrate()
+ * - clearError()
+ *
+ * Implementation guidance:
+ * - Call hydrate() once in AuthHydrator.
+ * - Do not derive identity from JWT.
+ *
+ * Scalability insight:
+ * - Can add WebSocket session revocation push later.
  */
+
+const LOGOUT_EVENT_KEY = "auth:logout";
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   loading: false,
@@ -48,7 +68,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /* ============================================================
      LOGIN
-     ============================================================ */
+  ============================================================ */
   async login(email: string, tenantSlug: string) {
     try {
       set({ loading: true, error: null });
@@ -58,12 +78,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         tenantSlug,
       });
 
-      // DEV MODE shortcut
+      // Dev shortcut
       if (response.devToken) {
         await verifyLogin({ token: response.devToken });
       }
 
-      // Fetch identity after successful login
       const identity = await getCurrentUser();
 
       set({
@@ -76,18 +95,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         loading: false,
         error: err.message || "Login failed",
+        isAuthenticated: false,
       });
     }
   },
 
   /* ============================================================
      LOGOUT
-     ============================================================ */
+  ============================================================ */
   async logout() {
     try {
       set({ loading: true, error: null });
 
       await apiLogout();
+
+      // Broadcast logout to other tabs
+      localStorage.setItem(LOGOUT_EVENT_KEY, Date.now().toString());
 
       set({
         loading: false,
@@ -104,9 +127,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /* ============================================================
-     HYDRATE (on app boot)
-     ============================================================ */
+     HYDRATE (app boot or 401 recovery)
+  ============================================================ */
   async hydrate() {
+    // Prevent duplicate hydration
+    if (get().isHydrated) return;
+
     try {
       const identity = await getCurrentUser();
 
@@ -116,10 +142,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isHydrated: true,
       });
     } catch {
+      // Kill-switch or expired session
       set({
         user: null,
         isAuthenticated: false,
         isHydrated: true,
+      });
+    }
+
+    // Cross-tab listener
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (event) => {
+        if (event.key === LOGOUT_EVENT_KEY) {
+          set({
+            user: null,
+            isAuthenticated: false,
+          });
+        }
       });
     }
   },

@@ -1,29 +1,18 @@
 // apps/web/src/app/xotic/layout.tsx
-// Purpose: Root layout for Xotic section with server-side auth guard
+// Purpose: Server-side protected layout with reliable cookie forwarding and zero flicker auth guard (Next 15 compatible)
 
 import type { Metadata } from "next";
 import { Lexend } from "next/font/google";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { XoticDensityRoot } from "./postwins/_components/layout/XoticDensityRoot";
-import { AuthHydrator } from "@/app/xotic/AuthHydrator";
+import AuthHydrator from "./AuthHydrator";
+
 /**
- * Design reasoning:
- * - Guard runs server-side before rendering protected UI.
- * - Prevents hydration flicker.
- * - Uses HttpOnly session cookie.
- * - Does not modify visual structure.
- *
- * Structure:
- * - validateSession()
- * - RootLayout wrapper
- *
- * Implementation guidance:
- * - Relies on /api/auth/me endpoint.
- * - Must use no-store to prevent caching auth state.
- *
- * Scalability insight:
- * - Can extend to role-based routing or tenant enforcement.
+ * Assumptions:
+ * - Backend validates DB-backed session via authMiddleware.
+ * - /api/auth/me returns 401 if session revoked/expired.
+ * - Next.js 15+ requires awaiting cookies().
  */
 
 const lexend = Lexend({
@@ -39,13 +28,41 @@ export const metadata: Metadata = {
     "Xotic, Connecting Donors and NGOs to ensure social impact is a byproduct of Progress",
 };
 
+/**
+ * Design reasoning:
+ * - Await cookies() (Next 15 requirement).
+ * - Manually forward cookie header to backend.
+ * - Block render before session validation.
+ * - Prevent hydration flicker.
+ *
+ * Structure:
+ * - validateSession()
+ * - RootLayout()
+ *
+ * Implementation guidance:
+ * - NEXT_PUBLIC_APP_ORIGIN must match backend origin.
+ * - Ensure no-store to avoid caching auth state.
+ *
+ * Scalability insight:
+ * - Can extend to role-based redirects or tenant scoping here.
+ */
+
 async function validateSession(): Promise<boolean> {
   try {
+    const cookieStore = await cookies();
+
+    const cookieHeader = cookieStore
+      .getAll()
+      .map((c) => `${c.name}=${c.value}`)
+      .join("; ");
+
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_APP_ORIGIN}/api/auth/me`,
       {
         cache: "no-store",
-        credentials: "include",
+        headers: {
+          cookie: cookieHeader,
+        },
       },
     );
 
@@ -57,9 +74,9 @@ async function validateSession(): Promise<boolean> {
 
 export default async function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   const valid = await validateSession();
 
   if (!valid) {
@@ -71,7 +88,6 @@ export default async function RootLayout({
       <body className="font-sans antialiased min-h-dvh overflow-x-hidden">
         <AuthHydrator />
         <XoticDensityRoot>{children}</XoticDensityRoot>
-        <AuthHydrator />
       </body>
     </html>
   );
