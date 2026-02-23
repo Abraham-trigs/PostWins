@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { fetchMessagesByCase } from "@/lib/api/message";
+import { fetchMessagesByCase } from "@/lib/api/contracts/domain/message";
 import type { ThreadMessage } from "./types";
 
 /* ===================== Slice Types ===================== */

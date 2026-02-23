@@ -38,7 +38,7 @@ export const metadata: Metadata = {
  * PRODUCTION-GRADE REQUEST DEMO PAGE
  * Injects ContactPage JSON-LD for structured SEO eligibility.
  */
-export default function RequestDemoPage(): JSX.Element {
+export default function RequestDemoPage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "ContactPage",

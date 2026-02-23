@@ -16,26 +16,28 @@ export default function GovernanceModal({
           Deterministic Protocol: {role}
         </div>
         <h2 className="text-3xl font-black text-white leading-tight">
-          {copy.hero}
+          {copy.hero.headline}
         </h2>
       </header>
 
       <section className="space-y-4">
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800">
           <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">
-            The Constraint
+            The Constraint (Problem)
           </h4>
           <p className="text-slate-300 text-sm leading-relaxed">
-            {copy.problem}
+            {/* FIX: Accessed .body property */}
+            {copy.problem.body}
           </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-blue-600/5 border border-blue-500/20">
           <h4 className="text-xs font-bold text-blue-500 uppercase mb-2">
-            The Enforcement
+            The Enforcement (Solution)
           </h4>
           <p className="text-slate-100 text-sm leading-relaxed">
-            {copy.solution}
+            {/* FIX: Accessed .summary property */}
+            {copy.solution.summary}
           </p>
         </div>
       </section>
@@ -43,19 +45,25 @@ export default function GovernanceModal({
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-900">
         <div>
           <span className="block text-[10px] text-slate-500 uppercase">
-            Primary Focus
+            Architecture Layer
           </span>
-          <span className="text-sm font-bold text-white">{copy.focus}</span>
+          <span className="text-sm font-bold text-white">
+            {/* FIX: Aligned with architectureFocus.layer */}
+            {copy.architectureFocus.layer}
+          </span>
         </div>
         <div>
           <span className="block text-[10px] text-slate-500 uppercase">
-            Target Outcome
+            Enforcement Method
           </span>
-          <span className="text-sm font-bold text-blue-400">{copy.metric}</span>
+          <span className="text-sm font-bold text-blue-400">
+            {/* FIX: Aligned with architectureFocus.enforcement */}
+            {copy.architectureFocus.enforcement}
+          </span>
         </div>
       </div>
 
-      <button className="w-full btn-primary py-5 text-lg">
+      <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-5 rounded-xl text-lg transition-colors">
         Enter {role} Workspace
       </button>
     </div>

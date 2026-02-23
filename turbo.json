@@ -6,13 +6,25 @@
       "cache": false,
       "persistent": true
     },
+    "generate:core-enums": {
+      "cache": true,
+      "inputs": ["scripts/**", "prisma/schema.prisma"],
+      "outputs": ["src/generated/**"]
+    },
     "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "public/**", "next.config.ts", "tsconfig.json"],
+      "dependsOn": ["^build", "generate:core-enums"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "next.config.ts",
+        "tsconfig.json",
+        "postcss.config.js",
+        "tailwind.config.ts"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "generate:core-enums"]
     },
     "lint": {
       "dependsOn": ["^lint"]

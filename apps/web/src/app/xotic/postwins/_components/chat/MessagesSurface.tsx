@@ -5,7 +5,7 @@ import React from "react";
 import { Activity, ExternalLink, ArrowRight } from "lucide-react";
 import { usePostWinStore } from "./store/usePostWinStore";
 import { handleNavigation } from "@/utils/navigation"; // Import our utility
-import type { BackendMessage } from "@/lib/api/message";
+import type { BackendMessage } from "@/lib/api/contracts/domain/message";
 
 export function MessagesSurface() {
   const messages = usePostWinStore((s) => s.messages);

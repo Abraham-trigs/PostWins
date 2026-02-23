@@ -2,7 +2,7 @@
 // Purpose: Deterministic Optimistic Timeline with ACK + durable receipt reconciliation + derived delivery state.
 
 import type { StateCreator } from "zustand";
-import type { BackendMessage } from "@/lib/api/message";
+import type { BackendMessage } from "@/lib/api/contracts/domain/message";
 
 ////////////////////////////////////////////////////////////////
 // Design reasoning

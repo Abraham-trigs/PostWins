@@ -36,7 +36,7 @@ import type { PrimaryRole } from "@/_lib/experience.types";
    Component
    ========================================================= */
 
-export default function ImpactClient(): JSX.Element {
+export default function ImpactClient() {
   const role: PrimaryRole | null =
     useSafeExperienceStore((s) => s.primaryRole) ?? null;
 

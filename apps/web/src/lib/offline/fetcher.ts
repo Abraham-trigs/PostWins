@@ -1,41 +1,130 @@
 // apps/web/src/lib/offline/fetcher.ts
+// Purpose: Centralized fetch wrapper with offline queue support,
+// credential forwarding, and safe refresh mutex handling.
+
 import { isOnline } from "./network";
 import { enqueue } from "./queue";
 import { stableStringify, sha256 } from "./serializer";
+import { refreshSession } from "../api/auth.api";
 
 type FetchOptions = RequestInit & {
-  offlineQueue?: boolean; // explicit opt-in
+  offlineQueue?: boolean;
 };
+
+/* ============================================================
+   REFRESH MUTEX (single-flight protection)
+   ============================================================ */
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function attemptRefresh(): Promise<boolean> {
+  try {
+    await refreshSession();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureRefreshed(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = attemptRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+/* ============================================================
+   FETCHER
+   ============================================================ */
 
 export async function fetcher(url: string, options: FetchOptions = {}) {
   const { offlineQueue = false, ...init } = options;
 
-  // READS: never queued
+  const requestInit: RequestInit = {
+    credentials: "include",
+    ...init,
+  };
+
+  const execute = async (): Promise<Response> => {
+    return fetch(url, requestInit);
+  };
+
+  /* ============================================================
+     READS (never queued)
+     ============================================================ */
   if (!offlineQueue) {
-    const res = await fetch(url, init);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let res = await execute();
+
+    if (res.status === 401) {
+      const refreshed = await ensureRefreshed();
+
+      if (!refreshed) {
+        const error: any = new Error("Unauthorized");
+        error.status = 401;
+        throw error;
+      }
+
+      res = await execute();
+    }
+
+    if (!res.ok) {
+      const error: any = new Error(`HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+
     return res.json();
   }
 
-  // WRITES
+  /* ============================================================
+     WRITES (online)
+     ============================================================ */
   if (isOnline()) {
-    const res = await fetch(url, init);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    let res = await execute();
+
+    if (res.status === 401) {
+      const refreshed = await ensureRefreshed();
+
+      if (!refreshed) {
+        const error: any = new Error("Unauthorized");
+        error.status = 401;
+        throw error;
+      }
+
+      res = await execute();
+    }
+
+    if (!res.ok) {
+      const error: any = new Error(`HTTP ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+
     return res.json();
   }
 
-  // OFFLINE WRITE → enqueue
-  const body = init.body ? JSON.parse(init.body as string) : null;
+  /* ============================================================
+     OFFLINE WRITE → enqueue
+     ============================================================ */
+
+  const body = requestInit.body ? JSON.parse(requestInit.body as string) : null;
 
   const fingerprint = await sha256(
-    stableStringify({ url, method: init.method, body }),
+    stableStringify({
+      url,
+      method: requestInit.method,
+      body,
+    }),
   );
 
   enqueue({
     id: fingerprint,
     url,
-    method: init.method as any,
-    headers: init.headers as Record<string, string>,
+    method: requestInit.method as any,
+    headers: requestInit.headers as Record<string, string>,
     body,
     createdAt: Date.now(),
   });

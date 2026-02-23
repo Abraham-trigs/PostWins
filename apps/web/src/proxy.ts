@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { PRIMARY_ROLES } from "./_lib/experience.types";
+import { PRIMARY_ROLES } from "../../website/src/_lib/experience.types";
 
 /**
  * Design reasoning:

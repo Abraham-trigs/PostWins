@@ -1,4 +1,3 @@
-// apps/website/src/app/layout.tsx
 import "./globals.css";
 import { Inter } from "next/font/google";
 import Header from "@/_components/Header";
@@ -11,9 +10,19 @@ const inter = Inter({
 });
 
 export const metadata = {
+  // Fixes the "metadataBase property is not set" warning
+  // Uses environment variable if present, otherwise defaults to localhost
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  ),
   title: "PostWins | Deterministic Infrastructure",
   description:
     "Governance engine for global impact infrastructure and transparent humanitarian operations.",
+  openGraph: {
+    title: "PostWins | Deterministic Infrastructure",
+    description: "Governance engine for global impact infrastructure.",
+    type: "website",
+  },
 };
 
 /**

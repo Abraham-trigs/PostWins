@@ -15,7 +15,7 @@ import {
   type BackendMessageType,
   type BackendNavigationContext,
   type BackendMessage,
-} from "@/lib/api/message";
+} from "@/lib/api/contracts/domain/message";
 
 /* =========================================================
    Tenant Resolution

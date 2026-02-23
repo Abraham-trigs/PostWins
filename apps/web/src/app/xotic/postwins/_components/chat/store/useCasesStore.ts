@@ -1,33 +1,23 @@
 // apps/web/src/app/xotic/postwins/_components/chat/store/useCasesStore.ts
-// Purpose: Cursor-based normalized store powering left case panel
-
 import { create } from "zustand";
-import type { CaseListItem } from "@posta/core";
-import { listCases } from "@/lib/api/cases.api";
-
-/* ============================================================
-   Design reasoning
-   ------------------------------------------------------------
-   - Normalized state prevents duplication.
-   - Cursor-based pagination.
-   - Search is debounced at store layer.
-   - Infinite-scroll safe.
-   - Optimistic-ready structure.
-   ============================================================ */
+/**
+ * FIXED: Import CaseListItem from our API file to ensure
+ * strict alignment with the fetcher logic we just wrote.
+ */
+import {
+  listCases,
+  type CaseListItem,
+} from "@/lib/api/contracts/domain/cases.api";
 
 type CasesState = {
   byId: Record<string, CaseListItem>;
   orderedIds: string[];
-
   nextCursor: string | null;
   limit: number;
-
   loading: boolean;
   error: string | null;
-
   search: string;
   hasMore: boolean;
-
   fetchInitial: () => Promise<void>;
   fetchMore: () => Promise<void>;
   setSearch: (value: string) => void;
@@ -35,19 +25,14 @@ type CasesState = {
 };
 
 const DEFAULT_LIMIT = 20;
-
-let debounceTimer: NodeJS.Timeout | null = null;
-
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 export const useCasesStore = create<CasesState>((set, get) => ({
   byId: {},
   orderedIds: [],
-
   nextCursor: null,
   limit: DEFAULT_LIMIT,
-
   loading: false,
   error: null,
-
   search: "",
   hasMore: true,
 
@@ -70,7 +55,10 @@ export const useCasesStore = create<CasesState>((set, get) => ({
       const map: Record<string, CaseListItem> = {};
       const ids: string[] = [];
 
-      for (const c of data.cases) {
+      // Safe check for cases array
+      const cases = data?.cases || [];
+
+      for (const c of cases) {
         map[c.id] = c;
         ids.push(c.id);
       }
@@ -78,11 +66,18 @@ export const useCasesStore = create<CasesState>((set, get) => ({
       set({
         byId: map,
         orderedIds: ids,
-        nextCursor: data.meta.nextCursor,
-        hasMore: !!data.meta.nextCursor,
+        /**
+         * FIXED: data.nextCursor
+         * Aligned with ListCasesResponse and our SSR mock.
+         */
+        nextCursor: data.nextCursor || null,
+        hasMore: !!data.nextCursor,
         loading: false,
       });
     } catch (e: any) {
+      // Don't set error state if it's an AbortError
+      if (e.name === "AbortError") return;
+
       set({
         loading: false,
         error: e.message ?? "Failed to load cases",
@@ -102,10 +97,11 @@ export const useCasesStore = create<CasesState>((set, get) => ({
         search: get().search || undefined,
       });
 
-      const current = get().byId;
+      const current = { ...get().byId };
       const ids = [...get().orderedIds];
+      const cases = data?.cases || [];
 
-      for (const c of data.cases) {
+      for (const c of cases) {
         if (!current[c.id]) {
           current[c.id] = c;
           ids.push(c.id);
@@ -113,13 +109,15 @@ export const useCasesStore = create<CasesState>((set, get) => ({
       }
 
       set({
-        byId: { ...current },
+        byId: current,
         orderedIds: ids,
-        nextCursor: data.meta.nextCursor,
-        hasMore: !!data.meta.nextCursor,
+        nextCursor: data.nextCursor || null,
+        hasMore: !!data.nextCursor,
         loading: false,
       });
     } catch (e: any) {
+      if (e.name === "AbortError") return;
+
       set({
         loading: false,
         error: e.message ?? "Pagination failed",
@@ -129,9 +127,7 @@ export const useCasesStore = create<CasesState>((set, get) => ({
 
   setSearch(value: string) {
     set({ search: value });
-
     if (debounceTimer) clearTimeout(debounceTimer);
-
     debounceTimer = setTimeout(() => {
       get().fetchInitial();
     }, 300);
@@ -149,37 +145,3 @@ export const useCasesStore = create<CasesState>((set, get) => ({
     });
   },
 }));
-
-/* ============================================================
-   Structure
-   ------------------------------------------------------------
-   - Normalized state
-   - Cursor tracking
-   - Debounced search
-   - Infinite scroll fetch
-   ============================================================ */
-
-/* ============================================================
-   Implementation guidance
-   ------------------------------------------------------------
-   In left panel component:
-
-     const { orderedIds, byId, fetchMore } = useCasesStore()
-
-   Render:
-     orderedIds.map(id => byId[id])
-
-   On scroll bottom:
-     fetchMore()
-
-   On search input:
-     setSearch(value)
-   ============================================================ */
-
-/* ============================================================
-   Scalability insight
-   ------------------------------------------------------------
-   Normalization prevents memory bloat.
-   Cursor pagination avoids offset degradation.
-   Debounce prevents backend thrashing.
-   ============================================================ */

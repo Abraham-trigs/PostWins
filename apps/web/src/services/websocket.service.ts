@@ -5,7 +5,7 @@
 // unread delta + reset handling (exact-once UX semantics).
 
 import { usePostWinStore } from "@/app/xotic/postwins/_components/chat/store/usePostWinStore";
-import type { BackendMessage } from "@/lib/api/message";
+import type { BackendMessage } from "@/lib/api/contracts/domain/message";
 
 /* =========================================================
    Design reasoning

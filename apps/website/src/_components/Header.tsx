@@ -11,8 +11,9 @@ import {
 } from "../_store/useExperienceStore";
 import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCcw, ArrowRight, Menu, X, LogIn } from "lucide-react";
+import { ReactNode } from "react";
 
-export default function Header(): JSX.Element {
+export default function Header(): ReactNode {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();

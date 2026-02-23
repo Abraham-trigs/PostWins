@@ -21,7 +21,7 @@ import type { PrimaryRole } from "@/_lib/experience.types";
    Component
    ========================================================= */
 
-export default function RequestDemoClient(): JSX.Element {
+export default function RequestDemoClient() {
   const role: PrimaryRole | null =
     useSafeExperienceStore((s) => s.primaryRole) ?? null;
 

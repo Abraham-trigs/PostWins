@@ -6,7 +6,7 @@
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import { listPostWins } from "@/lib/api/postwins.api";
+import { listPostWins } from "@/lib/api/contracts/domain/postwins.api";
 import type {
   PostWinListItem,
   PostWinLifecycle,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CaseListItem } from "@/lib/api/cases.api";
+import type { CaseListItem } from "@/lib/api/contracts/domain/cases.api";
 
 type Props = {
   caseItem: CaseListItem;

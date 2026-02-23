@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { explainApi } from "@/lib/api/explain.api";
+import { explainApi } from "@/lib/api/contracts/domain/explain.api";
 
 type Props = {
   caseId: string;

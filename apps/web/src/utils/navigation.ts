@@ -1,7 +1,7 @@
 // src/utils/navigation.ts
 // Purpose: Stateless navigation handler for Message Signals.
 
-import type { BackendNavigationContext } from "@/lib/api/message";
+import type { BackendNavigationContext } from "@/lib/api/contracts/domain/message";
 
 /**
  * handleNavigation
