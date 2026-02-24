@@ -1,11 +1,12 @@
 /**
  * ============================================================================
  * File: apps/web/src/lib/api/contracts/domain/message.ts
- * Purpose: Authoritative Message API client (Tenant & Cursor Aware).
+ * Purpose: Authoritative Message API client (Tenant, Cursor & Rotation Aware).
+ * Uses apiClient to preserve refresh rotation + interceptor safety.
  * ============================================================================
  */
 
-const BACKEND_ORIGIN = "";
+import { apiClient } from "@/lib/api/apiClient";
 
 /* =========================================================
    Types
@@ -69,55 +70,49 @@ function buildQuery(params: Record<string, string | number | undefined>) {
   return query.toString();
 }
 
-function assertOk(res: Response, json: any) {
-  if (!res.ok) {
-    throw new Error(json?.error ?? "Request failed");
+function assertDataShape(data: any) {
+  if (!data) {
+    throw new Error("Invalid response shape");
   }
 }
 
 /* =========================================================
-   Create Message (Tenant Aware)
+   Create Message
+   - Tenant header automatically injected by apiClient interceptor
+   - Refresh rotation handled automatically
 ========================================================= */
 
-export async function createMessage(
-  payload: {
-    caseId: string;
-    type: BackendMessageType;
-    body: string;
-    parentId?: string | null;
-    navigationContext?: BackendNavigationContext | null;
-    clientMutationId?: string | null;
-  },
-  tenantId: string, // Explicit tenant context from store
-): Promise<BackendMessage> {
-  const res = await fetch(`${BACKEND_ORIGIN}/api/messages`, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      "x-tenant-id": tenantId, // Satisfies Server-side guard
-    },
-    body: JSON.stringify(payload),
-  });
+export async function createMessage(payload: {
+  caseId: string;
+  type: BackendMessageType;
+  body: string;
+  parentId?: string | null;
+  navigationContext?: BackendNavigationContext | null;
+  clientMutationId?: string | null;
+}): Promise<BackendMessage> {
+  if (!payload.caseId) throw new Error("caseId is required");
+  if (!payload.type) throw new Error("message type is required");
+  if (!payload.body?.trim()) throw new Error("message body is required");
 
-  const json = await res.json();
-  assertOk(res, json);
+  const { data } = await apiClient.post("/messages", payload);
 
-  return json.data as BackendMessage;
+  assertDataShape(data);
+
+  return data.data as BackendMessage;
 }
 
 /* =========================================================
-   Fetch Messages (Tenant Aware + Cursor-Based)
+   Fetch Messages (Cursor-Based Pagination)
+   - Rotation-safe
+   - Tenant header auto-injected
 ========================================================= */
 
 export async function fetchMessagesByCase(
   caseId: string,
-  tenantId: string, // Explicit tenant context from store
   cursor?: string | null,
   limit: number = 30,
 ): Promise<FetchMessagesResponse> {
   if (!caseId) throw new Error("caseId is required");
-  if (!tenantId) throw new Error("tenantId is required for guard validation");
 
   const safeLimit = Math.min(Math.max(limit, 1), 100);
 
@@ -126,25 +121,16 @@ export async function fetchMessagesByCase(
     limit: safeLimit,
   });
 
-  const res = await fetch(
-    `${BACKEND_ORIGIN}/api/messages/${caseId}${query ? `?${query}` : ""}`,
-    {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "x-tenant-id": tenantId, // Deterministic routing header
-        "Content-Type": "application/json",
-      },
-      cache: "no-store",
-    },
+  const { data } = await apiClient.get(
+    `/messages/${caseId}${query ? `?${query}` : ""}`,
+    { params: {} },
   );
 
-  const json = await res.json();
-  assertOk(res, json);
+  assertDataShape(data);
 
   return {
-    messages: json.data ?? [],
-    nextCursor: json.nextCursor ?? null,
-    hasMore: Boolean(json.hasMore),
+    messages: data.data ?? [],
+    nextCursor: data.nextCursor ?? null,
+    hasMore: Boolean(data.hasMore),
   };
 }

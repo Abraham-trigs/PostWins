@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { useShallow } from "zustand/react/shallow"; // Stabilizes the array reference
+import React, { useMemo } from "react";
 import { Activity, ExternalLink, ArrowRight } from "lucide-react";
 import { usePostWinStore } from "./store/usePostWinStore";
 import { handleNavigation } from "@/utils/navigation";
@@ -13,13 +12,16 @@ type FeedItem =
   | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent };
 
 export function MessagesSurface() {
-  /**
-   * FIX: getUnifiedFeed() likely generates a new array reference on every call.
-   * Wrapping it in useShallow ensures React 19/Zustand 5 doesn't trigger
-   * an infinite loop by caching the snapshot result.
-   */
-  const feed = usePostWinStore(useShallow((s) => s.getUnifiedFeed()));
-  const currentUserId = usePostWinStore((s) => (s as any).currentUserId);
+  /* ================= Store Selectors ================= */
+
+  const getUnifiedFeed = usePostWinStore((s) => s.getUnifiedFeed);
+  const currentUserId = usePostWinStore((s) => s.currentUserId);
+
+  /* ================= Stable Feed Snapshot ================= */
+
+  const feed: FeedItem[] = useMemo(() => {
+    return getUnifiedFeed();
+  }, [getUnifiedFeed]);
 
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -97,11 +99,13 @@ function MessageRow({ msg, isOwn }: { msg: BackendMessage; isOwn: boolean }) {
 
       <div
         id={msg.id}
-        className={`
-          relative max-w-[85%] rounded-[var(--xotic-radius)] border px-4 py-3 text-sm shadow-sm transition-all
-          ${isOwn ? "bg-surface-strong border-line" : "bg-surface border-line/50"}
-          ${isSignal ? "border-ocean/30 bg-ocean/5 ring-1 ring-ocean/10" : ""}
-        `}
+        className={`relative max-w-[85%] rounded-[var(--xotic-radius)] border px-4 py-3 text-sm shadow-sm transition-all
+          ${
+            isOwn
+              ? "bg-surface-strong border-line"
+              : "bg-surface border-line/50"
+          }
+          ${isSignal ? "border-ocean/30 bg-ocean/5 ring-1 ring-ocean/10" : ""}`}
       >
         <p className="leading-relaxed text-ink/90 whitespace-pre-wrap">
           {safeBody}

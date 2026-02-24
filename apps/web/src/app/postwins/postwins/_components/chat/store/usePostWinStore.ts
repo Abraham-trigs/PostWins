@@ -6,7 +6,8 @@ import { fetchMessagesByCase } from "@/lib/api/contracts/domain/message";
 import type { ThreadMessage } from "./types";
 import { useAuthStore } from "@/lib/store/useAuthStore";
 
-// Slice Imports
+/* ===================== Slice Imports ===================== */
+
 import { createChatSlice, type ChatSlice } from "./postwins/slices/chat.slice";
 import {
   createCaseTimelineSlice,
@@ -20,9 +21,13 @@ import { createDeliverySlice } from "./postwins/slices/delivery.slice";
 import { createComposerSlice } from "./postwins/slices/composer.slice";
 import { createSubmissionSlice } from "./postwins/slices/submission.slice";
 
+/* ===================== Feed Model ===================== */
+
 type FeedItem =
   | { kind: "chat"; timestamp: string; data: ThreadMessage }
   | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent };
+
+/* ===================== Store Type ===================== */
 
 export type PostWinState = ChatSlice &
   CaseTimelineSlice & {
@@ -46,10 +51,12 @@ export type PostWinState = ChatSlice &
     getUnifiedFeed: () => FeedItem[];
   };
 
+/* ===================== Store ===================== */
+
 export const usePostWinStore = create<PostWinState>()(
   devtools(
     (set, get, ...a) => ({
-      /* ===================== Slices ===================== */
+      /* ======== Slices ======== */
       ...createChatSlice(set, get, ...a),
       ...createCaseTimelineSlice(set, get, ...a),
       ...createLifecycleSlice(set, get, ...a),
@@ -59,12 +66,12 @@ export const usePostWinStore = create<PostWinState>()(
       ...createComposerSlice(set, get, ...a),
       ...createSubmissionSlice(set, get, ...a),
 
-      /* ===================== Identity ===================== */
+      /* ======== Identity ======== */
       currentUserId: null,
       setCurrentUserId: (id: string) =>
         set({ currentUserId: id }, false, "identity/setCurrentUserId"),
 
-      /* ===================== Unread ===================== */
+      /* ======== Unread ======== */
       unreadByCase: {},
       incrementUnread: (caseId: string, delta: number) =>
         set(
@@ -80,36 +87,29 @@ export const usePostWinStore = create<PostWinState>()(
 
       resetUnread: (caseId: string) =>
         set(
-          (state) => ({ unreadByCase: { ...state.unreadByCase, [caseId]: 0 } }),
+          (state) => ({
+            unreadByCase: { ...state.unreadByCase, [caseId]: 0 },
+          }),
           false,
           "unread/reset",
         ),
 
-      /* ================= Chat Fetch (Tenant Aware) ================= */
+      /* ======== Initial Fetch ======== */
       fetchMessages: async (caseId: string) => {
-        // Extract tenantId and auth status from your AuthStore
-        const { isAuthenticated, isHydrated, tenantId } =
-          useAuthStore.getState();
+        const { isAuthenticated, isHydrated } = useAuthStore.getState();
 
-        // Guard: Prevent calls if context is missing
-        if (!caseId || !isAuthenticated || !isHydrated || !tenantId) {
-          console.warn(
-            "[PostWinStore] Fetch messages aborted: Missing tenant context or auth.",
-          );
-          return;
-        }
+        if (!caseId || !isAuthenticated || !isHydrated) return;
 
         try {
           set({ isLoading: true }, false, "chat/loading");
 
-          // Pass tenantId to satisfy the backend Server-side guard
-          const result = await fetchMessagesByCase(caseId, tenantId);
+          const result = await fetchMessagesByCase(caseId);
 
           const normalized: ThreadMessage[] = (result.messages ?? []).map(
             (m: any) => ({
               id: m.id,
               authorId: m.authorId,
-              type: m.type ?? "MESSAGE", // Fix for potential .replace() crash
+              type: m.type ?? "MESSAGE",
               body: m.body ?? "",
               createdAt: m.createdAt,
               navigationContext: m.navigationContext ?? null,
@@ -124,22 +124,21 @@ export const usePostWinStore = create<PostWinState>()(
           });
 
           set({ isLoading: false }, false, "chat/initialLoaded");
-        } catch (error: any) {
+        } catch (error) {
           set({ isLoading: false }, false, "chat/error");
           console.error("Failed to fetch messages:", error);
         }
       },
 
+      /* ======== Pagination Fetch ======== */
       fetchMoreMessages: async (caseId: string) => {
-        const { isAuthenticated, isHydrated, tenantId } =
-          useAuthStore.getState();
+        const { isAuthenticated, isHydrated } = useAuthStore.getState();
         const { nextCursor, hasMore, isFetchingMore } = get();
 
         if (
           !caseId ||
           !isAuthenticated ||
           !isHydrated ||
-          !tenantId ||
           !hasMore ||
           !nextCursor ||
           isFetchingMore
@@ -149,12 +148,7 @@ export const usePostWinStore = create<PostWinState>()(
         try {
           set({ isFetchingMore: true }, false, "chat/loadingMore");
 
-          // Pass tenantId for pagination as well
-          const result = await fetchMessagesByCase(
-            caseId,
-            tenantId,
-            nextCursor,
-          );
+          const result = await fetchMessagesByCase(caseId, nextCursor);
 
           const normalized: ThreadMessage[] = (result.messages ?? []).map(
             (m: any) => ({
@@ -181,7 +175,7 @@ export const usePostWinStore = create<PostWinState>()(
         }
       },
 
-      /* ================= Unified Feed ================= */
+      /* ======== Unified Feed ======== */
       getUnifiedFeed: () => {
         const { messages, events } = get();
 

@@ -8,7 +8,7 @@ import {
   Send as IconSend,
   Plus as IconPlus,
   X as IconX,
-} from "lucide-react"; // Direct import fixes "type is invalid" error
+} from "lucide-react";
 import { getModeCopy } from "./modeCopy";
 import { useAttachmentPicker } from "./useAttachmentPicker";
 
@@ -41,41 +41,50 @@ export function Composer() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const trayRef = useRef<HTMLDivElement>(null);
 
-  // Store Selectors
+  /* ================= Store Selectors ================= */
+
   const mode = usePostWinStore((s) => s.composerMode);
   const text = usePostWinStore((s) => s.composerText);
   const submitting = usePostWinStore((s) => s.submitting);
+
   const setComposerMode = usePostWinStore((s) => s.setComposerMode);
   const setComposerText = usePostWinStore((s) => s.setComposerText);
   const clearComposer = usePostWinStore((s) => s.clearComposer);
+
   const appendMessage = usePostWinStore((s) => s.appendMessage);
+  const confirmMessage = usePostWinStore((s) => s.confirmMessage);
   const rollbackMessage = usePostWinStore((s) => s.rollbackMessage);
-  const caseId = usePostWinStore((s) => (s as any).ids?.projectId);
+
+  // 🔥 Must be explicitly typed in store
+  const caseId = usePostWinStore((s) => s.activeCaseId);
   const currentUserId = usePostWinStore((s) => s.currentUserId);
 
   const { attachOpen, setAttachOpen, attachWrapRef } = useAttachmentPicker();
 
-  // Derived State
+  /* ================= Derived ================= */
+
   const copy = useMemo(() => getModeCopy(mode), [mode]);
   const { placeholder, modeLabel } = copy;
   const canSubmit = text.trim().length > 0;
 
-  /* =========================================================
-     UX Improvements: Click Outside to Close
-  ========================================================= */
+  /* ================= Click Outside Close ================= */
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (trayRef.current && !trayRef.current.contains(e.target as Node)) {
         setActionsOpen(false);
       }
     };
-    if (actionsOpen) document.addEventListener("mousedown", handleClickOutside);
+
+    if (actionsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [actionsOpen]);
 
-  /* =========================================================
-     Lifecycle Logic
-  ========================================================= */
+  /* ================= Capabilities ================= */
+
   const capabilities = useMemo(
     () => [
       { id: "record", label: "Record", active: mode === "record" },
@@ -87,6 +96,7 @@ export function Composer() {
 
   function buildNavigationContext(): BackendNavigationContext | null {
     if (mode !== "verify" || !caseId) return null;
+
     return {
       target: "TASK",
       id: caseId,
@@ -95,11 +105,16 @@ export function Composer() {
     };
   }
 
+  /* =========================================================
+     Submit Logic (Optimistic + Confirm)
+  ========================================================= */
+
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
 
     const trimmed = text.trim();
     const { tenantId } = useAuthStore.getState();
+
     if (!trimmed || !caseId || !currentUserId || !tenantId) return;
 
     const mutationId = crypto.randomUUID();
@@ -118,9 +133,11 @@ export function Composer() {
     };
 
     try {
+      // 1️⃣ Optimistic insert
       appendMessage(optimisticMessage);
       clearComposer();
 
+      // 2️⃣ Server call
       const serverMessage = await createMessage({
         caseId,
         type: optimisticMessage.type,
@@ -130,7 +147,8 @@ export function Composer() {
         clientMutationId: mutationId,
       });
 
-      appendMessage(serverMessage);
+      // 3️⃣ Confirm + replace temp ID
+      confirmMessage(mutationId, serverMessage.id);
     } catch (err) {
       rollbackMessage(mutationId);
       setComposerText(trimmed);
@@ -138,28 +156,29 @@ export function Composer() {
     }
   };
 
+  /* =========================================================
+     Render
+  ========================================================= */
+
   return (
     <footer className="h-[var(--xotic-composer-h)] px-[var(--xotic-pad-6)] flex items-center gap-4 bg-paper border-t border-line/40 relative">
-      {/* 🚀 ACTION BUTTON */}
       <div className="relative" ref={trayRef}>
         <button
           type="button"
           onClick={() => setActionsOpen((v) => !v)}
-          className={`
-            flex items-center gap-2 h-10 px-4 rounded-full border transition-all text-xs font-bold uppercase tracking-wider
-            ${actionsOpen ? "bg-ink text-paper border-ink" : "bg-surface-strong border-line/60 text-ink/70 hover:border-line"}
-          `}
+          className={`flex items-center gap-2 h-10 px-4 rounded-full border transition-all text-xs font-bold uppercase tracking-wider
+            ${
+              actionsOpen
+                ? "bg-ink text-paper border-ink"
+                : "bg-surface-strong border-line/60 text-ink/70 hover:border-line"
+            }`}
         >
           {actionsOpen ? <IconX size={14} /> : <IconPlus size={14} />}
           Actions
         </button>
 
-        {/* 🍿 ACTION TRAY */}
         {actionsOpen && (
-          <div className="absolute bottom-14 left-0 flex flex-col min-w-[160px] bg-paper/95 backdrop-blur-md border border-line/40 rounded-2xl p-1.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 z-50">
-            <div className="px-3 py-2 text-[10px] font-bold text-ink/40 uppercase tracking-widest">
-              Select Mode
-            </div>
+          <div className="absolute bottom-14 left-0 flex flex-col min-w-[160px] bg-paper/95 backdrop-blur-md border border-line/40 rounded-2xl p-1.5 shadow-2xl z-50">
             {capabilities.map((cap) => (
               <button
                 key={cap.id}
@@ -167,22 +186,20 @@ export function Composer() {
                   setComposerMode(cap.id as any);
                   setActionsOpen(false);
                 }}
-                className={`
-                  flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors
-                  ${cap.active ? "bg-blue-50 text-blue-600" : "text-ink/80 hover:bg-surface"}
-                `}
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors
+                  ${
+                    cap.active
+                      ? "bg-blue-50 text-blue-600"
+                      : "text-ink/80 hover:bg-surface"
+                  }`}
               >
                 {cap.label}
-                {cap.active && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                )}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* ⌨️ INPUT GROUP */}
       <div className="min-w-0 flex-1 flex flex-col">
         <div className="relative group" ref={attachWrapRef}>
           <button
@@ -196,7 +213,6 @@ export function Composer() {
           <input
             id={inputId}
             value={text}
-            onFocus={() => setActionsOpen(false)}
             onChange={(e) => setComposerText(e.target.value)}
             placeholder={placeholder}
             onKeyDown={(e) => {
@@ -205,7 +221,7 @@ export function Composer() {
                 handleSubmit();
               }
             }}
-            className="w-full h-11 rounded-full pl-11 pr-4 text-sm border border-line/40 bg-surface focus:bg-paper focus:ring-2 focus:ring-blue-100 transition-all outline-none text-ink"
+            className="w-full h-11 rounded-full pl-11 pr-4 text-sm border border-line/40 bg-surface focus:bg-paper focus:ring-2 focus:ring-blue-100 outline-none text-ink"
           />
         </div>
 
@@ -217,19 +233,16 @@ export function Composer() {
         </div>
       </div>
 
-      {/* 📤 SUBMIT BUTTON */}
       <button
         type="button"
         disabled={!canSubmit || submitting}
         onClick={handleSubmit}
-        className={`
-          h-11 w-11 rounded-full grid place-items-center transition-all shadow-sm
+        className={`h-11 w-11 rounded-full grid place-items-center transition-all
           ${
             canSubmit && !submitting
-              ? "bg-blue-600 text-white hover:scale-105 active:scale-95 shadow-blue-200"
+              ? "bg-blue-600 text-white hover:scale-105 active:scale-95"
               : "bg-surface-strong text-ink/20 cursor-not-allowed border border-line/20"
-          }
-        `}
+          }`}
       >
         <IconSend size={18} />
       </button>

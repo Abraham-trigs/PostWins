@@ -1,8 +1,13 @@
 // src/app/xotic/postwins/_components/chat/store/postwins/slices/chat.slice.ts
 // Purpose: Deterministic Optimistic Chat Slice with ACK + receipts + cursor pagination.
+// FIX: Properly typed currentUserId injection. No unsafe casts.
 
 import type { StateCreator } from "zustand";
 import type { BackendMessage } from "@/lib/api/contracts/domain/message";
+
+/* =========================================================
+   Slice State
+========================================================= */
 
 export type ChatSlice = {
   messages: BackendMessage[];
@@ -11,6 +16,10 @@ export type ChatSlice = {
   nextCursor: string | null;
   hasMore: boolean;
   isFetchingMore: boolean;
+
+  /** injected from auth slice */
+  currentUserId: string | null;
+  setCurrentUserId: (id: string | null) => void;
 
   setMessages: (
     messages: BackendMessage[],
@@ -46,6 +55,10 @@ export type ChatSlice = {
   ) => "sent" | "delivered" | "seen" | "none";
 };
 
+/* =========================================================
+   Slice Implementation
+========================================================= */
+
 export const createChatSlice: StateCreator<
   ChatSlice,
   [["zustand/devtools", never]],
@@ -58,6 +71,14 @@ export const createChatSlice: StateCreator<
   nextCursor: null,
   hasMore: true,
   isFetchingMore: false,
+
+  currentUserId: null,
+  setCurrentUserId: (id) =>
+    set({ currentUserId: id }, false, "chat/setCurrentUserId"),
+
+  /* =========================
+     Message Loading
+  ========================= */
 
   setMessages: (incoming, meta) =>
     set(
@@ -118,6 +139,10 @@ export const createChatSlice: StateCreator<
       "chat/resetPagination",
     ),
 
+  /* =========================
+     Optimistic Lifecycle
+  ========================= */
+
   appendMessage: (incoming) =>
     set(
       (state) => {
@@ -157,6 +182,21 @@ export const createChatSlice: StateCreator<
       "chat/confirmMessage",
     ),
 
+  rollbackMessage: (mutationId) =>
+    set(
+      (state) => ({
+        messages: state.messages.filter(
+          (m) => m.clientMutationId !== mutationId,
+        ),
+      }),
+      false,
+      "chat/rollbackMessage",
+    ),
+
+  /* =========================
+     Receipts
+  ========================= */
+
   applyReceipt: (payload) =>
     set(
       (state) => {
@@ -190,7 +230,7 @@ export const createChatSlice: StateCreator<
     const message = state.messages.find((m) => m.id === messageId);
     if (!message) return "sent";
 
-    const currentUserId = (state as any).currentUserId;
+    const currentUserId = state.currentUserId;
     if (!currentUserId) return "sent";
     if (message.authorId !== currentUserId) return "none";
 
@@ -209,17 +249,6 @@ export const createChatSlice: StateCreator<
 
     return "sent";
   },
-
-  rollbackMessage: (mutationId) =>
-    set(
-      (state) => ({
-        messages: state.messages.filter(
-          (m) => m.clientMutationId !== mutationId,
-        ),
-      }),
-      false,
-      "chat/rollbackMessage",
-    ),
 
   clearMessages: () =>
     set(
