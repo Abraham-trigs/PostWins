@@ -39,28 +39,37 @@ export function MobileChatsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let mounted = true;
+
     async function load() {
       try {
         setLoading(true);
 
-        // Server handles session validation
-        const result = await listCases();
+        const result = await listCases({}, { signal: controller.signal });
 
-        // Defensive fallback
+        if (!mounted) return;
+
         setCases(result?.cases || []);
       } catch (err: any) {
-        // Explicit 401 handling
+        if (err?.name === "AbortError") return;
+
         if (err?.status === 401) {
           console.warn("Unauthorized – session missing.");
         } else {
           console.error("Failed to load workflow chats", err);
         }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
 
     load();
+
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
   }, []);
 
   return (
@@ -90,7 +99,7 @@ export function MobileChatsScreen() {
                 <MobileChatRow
                   key={caseItem.id}
                   caseItem={caseItem}
-                  href={`/xotic/postwins/chat/${caseItem.id}`}
+                  href={`/postwins/postwins/chat/${caseItem.id}`}
                 />
               ))
             )}

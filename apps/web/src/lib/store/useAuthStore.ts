@@ -1,6 +1,3 @@
-// apps/web/src/lib/store/useAuthStore.ts
-// Purpose: Client-side auth state manager aligned with DB-backed kill-switch sessions
-
 "use client";
 
 import { create } from "zustand";
@@ -12,13 +9,6 @@ import {
 } from "@/lib/api/auth.api";
 import type { AuthUser } from "@/lib/api/contracts/domain/auth.types";
 
-/**
- * Assumptions:
- * - Backend invalidates sessions via revokedAt.
- * - getCurrentUser() throws on revoked/expired session.
- * - Cookies are HttpOnly; no token stored client-side.
- */
-
 type AuthState = {
   loading: boolean;
   error: string | null;
@@ -26,34 +16,18 @@ type AuthState = {
   isAuthenticated: boolean;
   isHydrated: boolean;
 
+  /**
+   * tenantId: The "Source of Truth" for the Server-side guard.
+   * Survives the 15m ACCESS_TTL by re-syncing from the 7-day REFRESH_TTL cookie.
+   */
+  tenantId: string | null;
   user: AuthUser | null;
 
-  login: (email: string, tenantSlug: string) => Promise<void>;
+  login: (email: string, tenantSlug: string) => Promise<{ ok: boolean }>;
   logout: () => Promise<void>;
-  hydrate: () => Promise<void>;
+  hydrate: (force?: boolean) => Promise<void>;
   clearError: () => void;
 };
-
-/**
- * Design reasoning:
- * - Identity comes ONLY from backend.
- * - 401 after refresh = kill-switch → force logout state.
- * - Cross-tab logout via localStorage broadcast.
- * - Hydration is idempotent and safe.
- *
- * Structure:
- * - login()
- * - logout()
- * - hydrate()
- * - clearError()
- *
- * Implementation guidance:
- * - Call hydrate() once in AuthHydrator.
- * - Do not derive identity from JWT.
- *
- * Scalability insight:
- * - Can add WebSocket session revocation push later.
- */
 
 const LOGOUT_EVENT_KEY = "auth:logout";
 
@@ -63,101 +37,102 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isAuthenticated: false,
   isHydrated: false,
-
+  tenantId: null,
   user: null,
 
   /* ============================================================
-     LOGIN
+     LOGIN: Establishes the 7-day Session
   ============================================================ */
   async login(email: string, tenantSlug: string) {
     try {
       set({ loading: true, error: null });
 
-      const response = await requestLogin({
-        email,
-        tenantSlug,
-      });
+      const response = await requestLogin({ email, tenantSlug });
 
-      // Dev shortcut
       if (response.devToken) {
         await verifyLogin({ token: response.devToken });
       }
 
+      // Sync identity immediately to get the DB-backed tenantId
       const identity = await getCurrentUser();
 
       set({
         loading: false,
         isAuthenticated: true,
         user: identity.user,
+        tenantId: identity.user?.tenantId || tenantSlug, // Fallback to slug if ID not yet in user record
         isHydrated: true,
       });
+
+      return { ok: true };
     } catch (err: any) {
       set({
         loading: false,
         error: err.message || "Login failed",
         isAuthenticated: false,
+        tenantId: null,
       });
+      return { ok: false };
     }
   },
 
   /* ============================================================
-     LOGOUT
+     LOGOUT: Revokes 7-day Session & 15m Access
   ============================================================ */
   async logout() {
     try {
       set({ loading: true, error: null });
-
       await apiLogout();
 
-      // Broadcast logout to other tabs
-      localStorage.setItem(LOGOUT_EVENT_KEY, Date.now().toString());
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LOGOUT_EVENT_KEY, Date.now().toString());
+      }
 
       set({
         loading: false,
         isAuthenticated: false,
         user: null,
+        tenantId: null,
         isHydrated: true,
       });
     } catch (err: any) {
-      set({
-        loading: false,
-        error: err.message || "Logout failed",
-      });
+      set({ loading: false, error: err.message || "Logout failed" });
     }
   },
 
   /* ============================================================
-     HYDRATE (app boot or 401 recovery)
+     HYDRATE: The 15m/7d Safety Net
+     Called on app boot and after 401 token expiration.
   ============================================================ */
-  async hydrate() {
-    // Prevent duplicate hydration
-    if (get().isHydrated) return;
+  async hydrate(force = false) {
+    // If already hydrated and not forced, skip to avoid UI flickers
+    if (get().isHydrated && !force) return;
 
     try {
+      // Hits the server with the 7-day HttpOnly cookie
       const identity = await getCurrentUser();
 
       set({
         user: identity.user,
+        tenantId: identity.user?.tenantId || null,
         isAuthenticated: true,
         isHydrated: true,
       });
     } catch {
-      // Kill-switch or expired session
+      // 401 or network error = Session Revoked
       set({
         user: null,
+        tenantId: null,
         isAuthenticated: false,
         isHydrated: true,
       });
     }
 
-    // Cross-tab listener
+    // Cross-tab Synchronization
     if (typeof window !== "undefined") {
       window.addEventListener("storage", (event) => {
         if (event.key === LOGOUT_EVENT_KEY) {
-          set({
-            user: null,
-            isAuthenticated: false,
-          });
+          set({ user: null, tenantId: null, isAuthenticated: false });
         }
       });
     }

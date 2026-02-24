@@ -1,5 +1,52 @@
 // apps/web/src/lib/api/auth.api.ts
 // Purpose: Frontend auth API client aligned with DB-backed kill-switch sessions
+// Direct-to-backend transport (no Next proxy)
+
+/**
+ * ============================================================================
+ * Design reasoning
+ * ============================================================================
+ * - Frontend must talk directly to backend origin.
+ * - Cookies are HttpOnly and scoped to backend.
+ * - Never mix origins (prevents tenantId loss).
+ * - 401 triggers single refresh retry.
+ * - Identity only from /api/auth/me.
+ *
+ * ============================================================================
+ * Structure
+ * ============================================================================
+ * - Types
+ * - Constants
+ * - Helpers
+ * - fetchWithAutoRefresh()
+ * - requestLogin()
+ * - verifyLogin()
+ * - refreshSession()
+ * - logout()
+ * - getCurrentUser()
+ *
+ * ============================================================================
+ * Implementation guidance
+ * ============================================================================
+ * - Ensure backend CORS allows credentials.
+ * - Ensure NEXT_PUBLIC_BACKEND_ORIGIN is set.
+ * - Do NOT proxy through Next.
+ *
+ * ============================================================================
+ * Scalability insight
+ * ============================================================================
+ * - Transport layer now origin-consistent.
+ * - Safe for multi-tenant + session revocation.
+ * - Can be extracted to global fetcher later.
+ * ============================================================================
+ */
+
+const BACKEND_ORIGIN =
+  process.env.NEXT_PUBLIC_BACKEND_ORIGIN ?? "http://localhost:3001";
+
+/* =========================================================
+   Types
+========================================================= */
 
 export type RequestLoginInput = {
   email: string;
@@ -19,33 +66,14 @@ type ApiSuccess<T = unknown> = {
   ok: true;
 } & T;
 
-/**
- * Design reasoning:
- * - All calls use same-origin proxy.
- * - Cookies are HttpOnly; frontend never reads JWT.
- * - 401 may mean expired access token OR revoked session.
- * - We retry once using refresh, then hard-fail.
- *
- * Structure:
- * - requestLogin()
- * - verifyLogin()
- * - refreshSession()
- * - logout()
- * - getCurrentUser()
- * - fetchWithAutoRefresh()
- *
- * Implementation guidance:
- * - Do NOT trust JWT client-side.
- * - Identity must come from /api/auth/me.
- *
- * Scalability insight:
- * - Can later extract fetchWithAutoRefresh into global API layer.
- */
+/* =========================================================
+   Helpers
+========================================================= */
 
 async function handleResponse<T>(res: Response): Promise<ApiSuccess<T>> {
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
 
-  if (!res.ok || !data.ok) {
+  if (!res.ok || !data?.ok) {
     const message = data?.error || `HTTP ${res.status}`;
     throw new Error(message);
   }
@@ -59,10 +87,12 @@ async function handleResponse<T>(res: Response): Promise<ApiSuccess<T>> {
  * - If refresh fails → session revoked/expired
  */
 async function fetchWithAutoRefresh(
-  input: RequestInfo,
+  path: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const res = await fetch(input, {
+  const url = `${BACKEND_ORIGIN}${path}`;
+
+  const res = await fetch(url, {
     credentials: "include",
     ...init,
   });
@@ -73,19 +103,22 @@ async function fetchWithAutoRefresh(
   try {
     await refreshSession();
   } catch {
-    // Kill-switch likely triggered
     throw new Error("SESSION_INVALID");
   }
 
   // Retry original request once
-  return fetch(input, {
+  return fetch(url, {
     credentials: "include",
     ...init,
   });
 }
 
+/* =========================================================
+   Auth Endpoints
+========================================================= */
+
 export async function requestLogin(input: RequestLoginInput) {
-  const res = await fetch("/api/auth/request-login", {
+  const res = await fetch(`${BACKEND_ORIGIN}/api/auth/request-login`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -99,7 +132,7 @@ export async function requestLogin(input: RequestLoginInput) {
 }
 
 export async function verifyLogin(input: VerifyLoginInput) {
-  const res = await fetch("/api/auth/verify", {
+  const res = await fetch(`${BACKEND_ORIGIN}/api/auth/verify`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -110,7 +143,7 @@ export async function verifyLogin(input: VerifyLoginInput) {
 }
 
 export async function refreshSession() {
-  const res = await fetch("/api/auth/refresh", {
+  const res = await fetch(`${BACKEND_ORIGIN}/api/auth/refresh`, {
     method: "POST",
     credentials: "include",
   });
@@ -119,7 +152,7 @@ export async function refreshSession() {
 }
 
 export async function logout() {
-  const res = await fetch("/api/auth/logout", {
+  const res = await fetch(`${BACKEND_ORIGIN}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -142,3 +175,16 @@ export async function getCurrentUser() {
 
   return res.json();
 }
+
+/* =========================================================
+   Example Usage
+========================================================= */
+
+/*
+await requestLogin({ email: "admin@ultra.local", tenantSlug: "ultra-demo" });
+await verifyLogin({ token: "dev-token" });
+
+const identity = await getCurrentUser();
+
+await logout();
+*/

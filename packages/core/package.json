@@ -9,6 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "add": "^2.0.6",
+    "lucide-react": "^0.562.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

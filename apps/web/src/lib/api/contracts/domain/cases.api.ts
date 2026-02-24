@@ -5,25 +5,28 @@ import type { ListCasesResponse } from "@posta/core";
 import { fetcher } from "../../../offline/fetcher";
 
 /* ============================================================
-   Design reasoning session 
+   Design reasoning
    ------------------------------------------------------------
-   - Uses shared fetcher (offline-aware).
-   - Deduplicates identical in-flight requests.
-   - Aborts stale requests automatically.
-   - Strongly typed transport boundary.
-   - Cursor-based pagination.
+   - Accepts external AbortSignal (React lifecycle control).
+   - Still deduplicates identical in-flight requests.
+   - Never aborts caller-controlled signals.
+   - Clean separation between dedupe and lifecycle cancellation.
+   - Strongly typed boundary.
    ============================================================ */
 
 /**
- * FIXED: Exported CaseListItem for UI components
- * Uses Indexed Access types to stay in sync with @posta/core
+ * Indexed access keeps UI in sync with core contract.
  */
 export type CaseListItem = ListCasesResponse["cases"][number];
 
-type ListCasesParams = {
+export type ListCasesParams = {
   cursor?: string | null;
   limit?: number;
   search?: string;
+};
+
+type ListCasesOptions = {
+  signal?: AbortSignal;
 };
 
 const inflight = new Map<string, AbortController>();
@@ -39,37 +42,56 @@ function buildQuery(params: ListCasesParams) {
 }
 
 /**
- * FIXED: Silent Tenant Resolver
- * Returns null if no session found to prevent UI crashes.
+ * listCases
+ *
+ * - params: cursor, limit, search
+ * - options.signal: external lifecycle cancellation
  */
-function getTenantId(): string | null {
-  // Check if we are in a browser environment
-  if (typeof window === "undefined") {
-    return "SSR_MODE";
-  }
-
-  return localStorage.getItem("tenantId");
-}
-
 export async function listCases(
   params: ListCasesParams = {},
+  options: ListCasesOptions = {},
 ): Promise<ListCasesResponse> {
   const query = buildQuery(params);
   const key = `cases:${query}`;
 
+  /**
+   * Abort any identical in-flight request
+   * (dedupe behavior — not lifecycle cancellation)
+   */
   if (inflight.has(key)) {
     inflight.get(key)!.abort();
     inflight.delete(key);
   }
 
-  const controller = new AbortController();
-  inflight.set(key, controller);
+  const internalController = new AbortController();
+  inflight.set(key, internalController);
+
+  /**
+   * Combine signals safely:
+   * - external signal (React lifecycle)
+   * - internal dedupe signal
+   */
+  const combinedController = new AbortController();
+
+  function forwardAbort(signal: AbortSignal | undefined) {
+    if (!signal) return;
+    if (signal.aborted) {
+      combinedController.abort();
+      return;
+    }
+    signal.addEventListener("abort", () => {
+      combinedController.abort();
+    });
+  }
+
+  forwardAbort(options.signal);
+  forwardAbort(internalController.signal);
 
   try {
     const data = await fetcher(`/api/cases?${query}`, {
       method: "GET",
-      credentials: "include", // critical for cookie auth
-      signal: controller.signal,
+      credentials: "include",
+      signal: combinedController.signal,
     });
 
     if (!data?.ok) {
@@ -77,6 +99,13 @@ export async function listCases(
     }
 
     return data as ListCasesResponse;
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      // Controlled cancellation — not an error condition
+      throw err;
+    }
+
+    throw err;
   } finally {
     inflight.delete(key);
   }

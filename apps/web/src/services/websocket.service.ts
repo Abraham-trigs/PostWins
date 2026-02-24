@@ -1,23 +1,10 @@
 // src/services/websocket.service.ts
-// Purpose: Case-scoped resilient WebSocket transport with race protection,
-// controlled reconnection, ACK reconciliation, receipt propagation,
-// typing support, batched delivery + batched seen transport,
-// unread delta + reset handling (exact-once UX semantics).
+// Purpose: Case-scoped resilient WebSocket transport with full lifecycle control,
+// explicit typing + seen + read tracking, ACK reconciliation, receipt propagation,
+// unread delta/reset handling, and deterministic reconnect behavior.
 
-import { usePostWinStore } from "@/app/xotic/postwins/_components/chat/store/usePostWinStore";
+import { usePostWinStore } from "../app/postwins/postwins/_components/chat/store/usePostWinStore";
 import type { BackendMessage } from "@/lib/api/contracts/domain/message";
-
-/* =========================================================
-   Design reasoning
-   ---------------------------------------------------------
-   - Delivery + Seen both batched.
-   - Reduces WS frames under high throughput.
-   - Server authoritative for timestamps.
-   - Idempotent persistence via backend upsert.
-   - No polling. Pure WS.
-   - Safe for multi-device + reconnect.
-   - UNREAD handled via delta + reset events (no polling).
-========================================================= */
 
 type PresencePayload = {
   userId: string;
@@ -56,16 +43,14 @@ class WebSocketService {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
 
-  // Batch Seen Transport
   private seenQueue = new Set<string>();
   private seenFlushTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Batch Delivered Transport
   private deliveredQueue = new Set<string>();
   private deliveredFlushTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  /////////////////////////////////////////////////////////////
-  // Connect (Case Scoped)
+  ///////////////////////////////////////////////////////////// protocol
+  // CONNECT
   /////////////////////////////////////////////////////////////
 
   connect(caseId: string) {
@@ -78,7 +63,11 @@ class WebSocketService {
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${protocol}//${window.location.host}/ws/cases/${caseId}`;
+
+    const backendHost =
+      process.env.NEXT_PUBLIC_BACKEND_WS_URL || "localhost:3001";
+
+    const url = `${protocol}//${backendHost}/ws/cases/${caseId}`;
 
     const socket = new WebSocket(url);
 
@@ -96,26 +85,16 @@ class WebSocketService {
         const data = JSON.parse(event.data) as WSMessage;
 
         switch (data.type) {
-          ///////////////////////////////////////////////////////
-          // Message Broadcast
-          ///////////////////////////////////////////////////////
-
           case "MESSAGE_CREATED": {
             const state = usePostWinStore.getState();
             state.appendMessage(data.payload);
 
             const currentUserId = state.currentUserId;
-
             if (currentUserId && data.payload.authorId !== currentUserId) {
               this.queueDelivered(data.payload.id);
             }
-
             break;
           }
-
-          ///////////////////////////////////////////////////////
-          // ACK
-          ///////////////////////////////////////////////////////
 
           case "MESSAGE_ACK":
             usePostWinStore
@@ -126,25 +105,13 @@ class WebSocketService {
               );
             break;
 
-          ///////////////////////////////////////////////////////
-          // Receipt
-          ///////////////////////////////////////////////////////
-
           case "MESSAGE_RECEIPT":
             usePostWinStore.getState().applyReceipt(data.payload);
             break;
 
-          ///////////////////////////////////////////////////////
-          // Presence
-          ///////////////////////////////////////////////////////
-
           case "PRESENCE_UPDATE":
             usePostWinStore.getState().setPresence(data.payload);
             break;
-
-          ///////////////////////////////////////////////////////
-          // Typing
-          ///////////////////////////////////////////////////////
 
           case "TYPING_UPDATE":
             usePostWinStore
@@ -152,19 +119,11 @@ class WebSocketService {
               .setTyping(data.payload.userId, data.payload.isTyping);
             break;
 
-          ///////////////////////////////////////////////////////
-          // STEP 46 — Unread Delta
-          ///////////////////////////////////////////////////////
-
           case "UNREAD_DELTA":
             usePostWinStore
               .getState()
               .incrementUnread(data.payload.caseId, data.payload.delta);
             break;
-
-          ///////////////////////////////////////////////////////
-          // STEP 46 — Unread Reset
-          ///////////////////////////////////////////////////////
 
           case "UNREAD_RESET":
             usePostWinStore.getState().resetUnread(data.payload.caseId);
@@ -173,42 +132,63 @@ class WebSocketService {
           default:
             break;
         }
-      } catch (err) {
-        console.error("WebSocket parse error", err);
+      } catch {
+        // ignore malformed frames
       }
     };
 
     socket.onclose = () => {
-      if (this.socket === socket) {
-        this.socket = null;
-      }
-
-      if (this.currentCaseId === caseId) {
-        this.scheduleReconnect(caseId);
-      }
+      if (this.socket === socket) this.socket = null;
+      if (this.currentCaseId === caseId) this.scheduleReconnect(caseId);
     };
 
-    socket.onerror = () => {
-      socket.close();
-    };
+    socket.onerror = () => socket.close();
   }
 
   /////////////////////////////////////////////////////////////
-  // Batched Delivery Sender
+  // PUBLIC SENDERS
   /////////////////////////////////////////////////////////////
 
-  queueDelivered(messageId: string) {
+  sendTypingStart() {
+    if (!this.isOpen()) return;
+    this.socket!.send(JSON.stringify({ type: "TYPING_START" }));
+  }
+
+  sendTypingStop() {
+    if (!this.isOpen()) return;
+    this.socket!.send(JSON.stringify({ type: "TYPING_STOP" }));
+  }
+
+  sendSeen(messageId: string) {
+    this.queueSeen(messageId);
+  }
+
+  sendReadUpTo(messageId: string) {
+    if (!this.isOpen()) return;
+    this.socket!.send(
+      JSON.stringify({
+        type: "CASE_READ_UP_TO",
+        messageId,
+      }),
+    );
+  }
+
+  /////////////////////////////////////////////////////////////
+  // DELIVERY (BATCHED)
+  /////////////////////////////////////////////////////////////
+
+  private queueDelivered(messageId: string) {
     this.deliveredQueue.add(messageId);
 
     if (this.deliveredFlushTimeout) return;
 
     this.deliveredFlushTimeout = setTimeout(() => {
-      if (!this.socket || this.deliveredQueue.size === 0) {
+      if (!this.isOpen() || this.deliveredQueue.size === 0) {
         this.deliveredFlushTimeout = null;
         return;
       }
 
-      this.socket.send(
+      this.socket!.send(
         JSON.stringify({
           type: "MESSAGE_DELIVERED_BATCH",
           messageIds: Array.from(this.deliveredQueue),
@@ -221,21 +201,21 @@ class WebSocketService {
   }
 
   /////////////////////////////////////////////////////////////
-  // Batched Seen Sender
+  // SEEN (BATCHED)
   /////////////////////////////////////////////////////////////
 
-  queueSeen(messageId: string) {
+  private queueSeen(messageId: string) {
     this.seenQueue.add(messageId);
 
     if (this.seenFlushTimeout) return;
 
     this.seenFlushTimeout = setTimeout(() => {
-      if (!this.socket || this.seenQueue.size === 0) {
+      if (!this.isOpen() || this.seenQueue.size === 0) {
         this.seenFlushTimeout = null;
         return;
       }
 
-      this.socket.send(
+      this.socket!.send(
         JSON.stringify({
           type: "MESSAGE_SEEN_BATCH",
           messageIds: Array.from(this.seenQueue),
@@ -248,8 +228,12 @@ class WebSocketService {
   }
 
   /////////////////////////////////////////////////////////////
-  // Reconnect Strategy
+  // INTERNAL HELPERS
   /////////////////////////////////////////////////////////////
+
+  private isOpen() {
+    return this.socket && this.socket.readyState === WebSocket.OPEN;
+  }
 
   private scheduleReconnect(caseId: string) {
     if (this.reconnectTimeout) return;
@@ -266,10 +250,6 @@ class WebSocketService {
       }
     }, delay);
   }
-
-  /////////////////////////////////////////////////////////////
-  // Disconnect
-  /////////////////////////////////////////////////////////////
 
   disconnect() {
     this.currentCaseId = null;

@@ -2,7 +2,6 @@
 // Purpose: Server-side protected layout with reliable cookie forwarding and zero flicker auth guard (Next 15 compatible)
 
 import type { Metadata } from "next";
-import { Lexend } from "next/font/google";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { XoticDensityRoot } from "./postwins/_components/layout/XoticDensityRoot";
@@ -12,15 +11,8 @@ import AuthHydrator from "./AuthHydrator";
  * Assumptions:
  * - Backend validates DB-backed session via authMiddleware.
  * - /api/auth/me returns 401 if session revoked/expired.
- * - Next.js 15+ requires awaiting cookies().
+ * - Root layout owns <html> and font variable.
  */
-
-const lexend = Lexend({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-lexend",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "PostWins - Empowering Social Impact through Seamless Connections",
@@ -30,21 +22,17 @@ export const metadata: Metadata = {
 
 /**
  * Design reasoning:
- * - Await cookies() (Next 15 requirement).
- * - Manually forward cookie header to backend.
- * - Block render before session validation.
- * - Prevent hydration flicker.
+ * - Layout-level guard prevents UI flicker.
+ * - No <html> or <body> here (App Router rule).
+ * - Server validation ensures redirect before render.
  *
  * Structure:
  * - validateSession()
- * - RootLayout()
- *
- * Implementation guidance:
- * - NEXT_PUBLIC_APP_ORIGIN must match backend origin.
- * - Ensure no-store to avoid caching auth state.
+ * - Protected layout wrapper
  *
  * Scalability insight:
- * - Can extend to role-based redirects or tenant scoping here.
+ * - Can add role-based redirects here.
+ * - Can add tenant scoping validation here.
  */
 
 async function validateSession(): Promise<boolean> {
@@ -72,7 +60,7 @@ async function validateSession(): Promise<boolean> {
   }
 }
 
-export default async function RootLayout({
+export default async function XoticLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -84,11 +72,9 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en" className={lexend.variable} suppressHydrationWarning>
-      <body className="font-sans antialiased min-h-dvh overflow-x-hidden">
-        <AuthHydrator />
-        <XoticDensityRoot>{children}</XoticDensityRoot>
-      </body>
-    </html>
+    <div className="overflow-x-hidden">
+      <AuthHydrator />
+      <XoticDensityRoot>{children}</XoticDensityRoot>
+    </div>
   );
 }

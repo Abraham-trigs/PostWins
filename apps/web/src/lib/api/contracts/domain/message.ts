@@ -1,8 +1,14 @@
-// src/lib/api/message.ts
-// Purpose: Authoritative message API client + shared DTO types for PostWin threads.
+/**
+ * ============================================================================
+ * File: apps/web/src/lib/api/contracts/domain/message.ts
+ * Purpose: Authoritative Message API client (Tenant & Cursor Aware).
+ * ============================================================================
+ */
+
+const BACKEND_ORIGIN = "";
 
 /* =========================================================
-   Types (Authoritative DTO Contracts)
+   Types
 ========================================================= */
 
 export type BackendMessageType =
@@ -12,13 +18,9 @@ export type BackendMessageType =
   | "EVIDENCE_SUBMISSION"
   | "FOLLOW_UP";
 
-/**
- * UPDATED: Aligned with Navigation Intelligence Utility.
- * Uses 'target' and 'id' as the primary steering mechanism.
- */
 export type BackendNavigationContext = {
   target: "TASK" | "MESSAGE" | "EXTERNAL";
-  id: string; // The UUID of the Task/Message or the External URL
+  id: string;
   label?: string | null;
   params?: {
     highlight?: boolean;
@@ -33,90 +35,116 @@ export type BackendMessage = {
   caseId: string;
   authorId: string;
   type: BackendMessageType;
-  clientMutationId: string | null; // ⚡️ The correlation token
+  clientMutationId: string | null;
   body: string | null;
   parentId: string | null;
   navigationContext: BackendNavigationContext | null;
-  createdAt: string; // ISO string
+  createdAt: string;
+  receipts?: Record<
+    string,
+    {
+      deliveredAt?: string | null;
+      seenAt?: string | null;
+    }
+  >;
+};
+
+export type FetchMessagesResponse = {
+  messages: BackendMessage[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
 /* =========================================================
    Helpers
 ========================================================= */
 
-function assertTenant(tenantId: string | null | undefined) {
-  if (!tenantId) throw new Error("Missing tenantId");
+function buildQuery(params: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      query.set(key, String(value));
+    }
+  }
+  return query.toString();
 }
 
-function normalizeNullableString(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const trimmed = v.trim();
-  return trimmed.length ? trimmed : null;
+function assertOk(res: Response, json: any) {
+  if (!res.ok) {
+    throw new Error(json?.error ?? "Request failed");
+  }
 }
 
 /* =========================================================
-   Create Message
+   Create Message (Tenant Aware)
 ========================================================= */
 
-export async function createMessage(payload: {
-  tenantId: string;
-  caseId: string;
-  authorId: string;
-  type: BackendMessageType;
-  body: string | null;
-  parentId?: string | null;
-  navigationContext?: BackendNavigationContext | null;
-}): Promise<BackendMessage> {
-  assertTenant(payload.tenantId);
-
-  const res = await fetch("/api/messages", {
+export async function createMessage(
+  payload: {
+    caseId: string;
+    type: BackendMessageType;
+    body: string;
+    parentId?: string | null;
+    navigationContext?: BackendNavigationContext | null;
+    clientMutationId?: string | null;
+  },
+  tenantId: string, // Explicit tenant context from store
+): Promise<BackendMessage> {
+  const res = await fetch(`${BACKEND_ORIGIN}/api/messages`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      "X-Tenant-Id": payload.tenantId,
+      "x-tenant-id": tenantId, // Satisfies Server-side guard
     },
-    body: JSON.stringify({
-      ...payload,
-      body: normalizeNullableString(payload.body),
-      parentId: normalizeNullableString(payload.parentId),
-    }),
+    body: JSON.stringify(payload),
   });
 
   const json = await res.json();
+  assertOk(res, json);
 
-  if (!res.ok) {
-    throw new Error(json?.error ?? "Failed to create message");
-  }
-
-  // Matches Backend Controller: { ok: true, data: BackendMessage }
   return json.data as BackendMessage;
 }
 
 /* =========================================================
-   Fetch Messages by Case
+   Fetch Messages (Tenant Aware + Cursor-Based)
 ========================================================= */
 
 export async function fetchMessagesByCase(
-  tenantId: string,
   caseId: string,
-): Promise<BackendMessage[]> {
-  assertTenant(tenantId);
+  tenantId: string, // Explicit tenant context from store
+  cursor?: string | null,
+  limit: number = 30,
+): Promise<FetchMessagesResponse> {
+  if (!caseId) throw new Error("caseId is required");
+  if (!tenantId) throw new Error("tenantId is required for guard validation");
 
-  const res = await fetch(`/api/messages/${tenantId}/${caseId}`, {
-    method: "GET",
-    headers: {
-      "X-Tenant-Id": tenantId,
-    },
-    cache: "no-store",
-    next: { tags: [`messages-${caseId}`] },
+  const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+  const query = buildQuery({
+    cursor: cursor ?? undefined,
+    limit: safeLimit,
   });
 
+  const res = await fetch(
+    `${BACKEND_ORIGIN}/api/messages/${caseId}${query ? `?${query}` : ""}`,
+    {
+      method: "GET",
+      credentials: "include",
+      headers: {
+        "x-tenant-id": tenantId, // Deterministic routing header
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
   const json = await res.json();
+  assertOk(res, json);
 
-  if (!res.ok) {
-    throw new Error(json?.error ?? "Failed to load messages");
-  }
-
-  // Matches Backend Controller: { ok: true, data: BackendMessage[] }
-  return json.data as BackendMessage[];
+  return {
+    messages: json.data ?? [],
+    nextCursor: json.nextCursor ?? null,
+    hasMore: Boolean(json.hasMore),
+  };
 }
