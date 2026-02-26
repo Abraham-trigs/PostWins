@@ -32,11 +32,11 @@ export * from "./contracts/domain/ledger";
 export * from "./contracts/domain/localization";
 export * from "./contracts/domain/sdg";
 
-export * from "./common/base-response";
-export * from "./pagination/cursor";
-export * from "./message/message.types";
-export * from "./evidence/evidence.types";
-export * from "./websocket/events";
+export * from "./contracts/domain/message/base-response";
+export * from "./contracts/domain/message/cursor";
+export * from "./contracts/domain/message/message.types";
+export * from "./contracts/domain/evidence/evidence.types";
+export * from "./contracts/domain/websocket/events";
 
 /* ============================================================
    Re-export Contracts (Add as They Are Created)

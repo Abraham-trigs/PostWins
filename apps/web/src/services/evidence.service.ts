@@ -26,6 +26,8 @@
 ////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////
+import { calculateSHA256 } from "@/lib/crypto";
+import { apiClient as api } from "@/lib/api/apiClient";
 
 export async function uploadGrantEvidence(
   file: File,

@@ -1,7 +1,7 @@
 // apps/frontend/src/hooks/use-evidence-upload.ts
 import { useState } from "react";
 import { calculateSHA256 } from "@/lib/crypto";
-import { api } from "@/lib/api-client"; // Your Axios/Fetch instance
+import { apiClient as api } from "@/lib/api/apiClient";
 
 export type UploadTarget = {
   timelineEntryId?: string;
