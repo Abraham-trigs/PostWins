@@ -13,6 +13,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCcw, ArrowRight, Menu, X, LogIn } from "lucide-react";
 import { ReactNode } from "react";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
+
 export default function Header(): ReactNode {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
@@ -57,25 +59,11 @@ export default function Header(): ReactNode {
 
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
         <nav className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
-          {/* BRAND & DESKTOP NAV */}
           <div className="flex items-center gap-6 lg:gap-12">
             <Link
               href="/"
               className="flex items-center gap-3 md:gap-4 group shrink-0 transition-all active:scale-[0.98]"
             >
-              {/* LOGO MARK: Center-aligned container */}
-              {/* <div className="relative p-1.5 rounded-lg bg-slate-900/50 group-hover:shadow-[0_0_25px_rgba(37,99,235,0.4)] transition-all flex items-center justify-center border border-slate-800">
-                <Image
-                  src="/postWins_logo_light.svg"
-                  alt="PostWins Icon"
-                  width={844}
-                  height={964}
-                  className="h-8 md:h-9 w-auto object-contain"
-                  priority
-                />
-              </div> */}
-
-              {/* LOGO TEXT: Removed pt-1 to fix the "hanging" look, used flex centering */}
               <div className="flex items-center">
                 <Image
                   src="/postWins_text_light.svg"
@@ -106,10 +94,10 @@ export default function Header(): ReactNode {
             </div>
           </div>
 
-          {/* ACTIONS AREA */}
           <div className="flex items-center gap-2 md:gap-4">
+            {/* LOGIN → Web App */}
             <Link
-              href="/login"
+              href={`${APP_URL}/auth/login`}
               className="group flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white transition-all mr-2"
             >
               <div className="p-1.5 rounded-md group-hover:bg-slate-800 transition-colors">
@@ -145,8 +133,9 @@ export default function Header(): ReactNode {
               )}
             </AnimatePresence>
 
+            {/* DEMO → Web App Root */}
             <Link
-              href="/request-demo"
+              href={`${APP_URL}/`}
               className="flex items-center gap-2 px-4 md:px-6 py-2.5 bg-blue-600 text-white rounded-full text-[10px] md:text-xs font-bold hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95 whitespace-nowrap"
             >
               <span>Request Demo</span>
@@ -192,7 +181,7 @@ export default function Header(): ReactNode {
 
                 <div className="pt-8 border-t border-slate-900 flex flex-col gap-6">
                   <Link
-                    href="/login"
+                    href={`${APP_URL}/auth/login`}
                     className="flex items-center gap-3 text-blue-400 font-bold uppercase tracking-widest"
                   >
                     <LogIn className="h-5 w-5" /> Login to Platform
