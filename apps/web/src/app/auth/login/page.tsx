@@ -51,7 +51,7 @@ export default function LoginPage() {
             Sign in to PostWins
           </h1>
           <p className="text-sm text-ink/50 mt-1">
-            Enter your details to access your workspace.
+            Login & keep the Record clean.
           </p>
         </div>
 
@@ -61,7 +61,7 @@ export default function LoginPage() {
               htmlFor="tenantSlug"
               className="block text-xs font-bold uppercase tracking-widest text-ink/60 mb-2"
             >
-              Tenant Slug
+              ID
             </label>
             <input
               id="tenantSlug"
@@ -109,7 +109,7 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <div className="h-4 w-4 border-2 border-paper/30 border-t-paper rounded-full animate-spin" />
-                  <span>Signing in…</span>
+                  <span>Authenticate…</span>
                 </>
               ) : (
                 <span>Continue to Dashboard</span>

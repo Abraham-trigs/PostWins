@@ -1,7 +1,7 @@
 // src/app/xotic/page.tsx
-import { MobileChatsScreen } from "./postwins/_components/mobile/MobileChatsScreen";
-import { TabletSplit } from "./postwins/_components/layout/TabletSplit";
-import { DesktopShell } from "./postwins/_components/layout/DesktopShell";
+import { MobileChatsScreen } from "./_components/layout/mobile/MobileChatsScreen";
+import { TabletSplit } from "./_components/layout/TabletSplit";
+import { DesktopShell } from "./_components/layout/DesktopShell";
 
 export default function XoticPage() {
   return (

@@ -40,7 +40,7 @@
   --background: var(--color-paper);
   --foreground: var(--color-ink);
 
-  /* === DERIVED UI TOKENS (do not add new colors) === */
+  /* === DERIVED UI TOKENS (do not add new colors) === pad */
   --color-line: color-mix(in srgb, var(--accent-soft) 26%, transparent);
 
   --surface: color-mix(in srgb, var(--surface-secondary) 16%, transparent);

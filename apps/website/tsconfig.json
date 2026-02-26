@@ -28,6 +28,10 @@
       "@/*": [
         "./src/*"
       ],
+      // Use the specific CSS alias to help Turbopack find it
+      "@/app/globals.css": [
+        "./src/app/globals.css"
+      ],
       "@ui/*": [
         "../../packages/ui/src/*"
       ]
@@ -35,7 +39,8 @@
   },
   "include": [
     "next-env.d.ts",
-    "src/**/*",
+    "**/*.ts", // Changed to catch all TS files
+    "**/*.tsx", // Changed to catch all TSX files
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

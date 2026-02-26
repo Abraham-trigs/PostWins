@@ -2,14 +2,22 @@
  * ============================================================================
  * File: apps/web/src/lib/api/contracts/domain/message.ts
  * Purpose: Authoritative Message API client (Tenant, Cursor & Rotation Aware).
- * Uses apiClient to preserve refresh rotation + interceptor safety.
+ * Fully aligned with backend REST + WS contracts.
  * ============================================================================
  */
 
 import { apiClient } from "@/lib/api/apiClient";
 
 /* =========================================================
-   Types
+   Design reasoning
+   - Web consumes backend as source of truth.
+   - Defensive normalization prevents UI corruption.
+   - No optimistic assumptions about backend shape.
+   - Pagination contract strictly matches service layer.
+========================================================= */
+
+/* =========================================================
+   Types (Aligned With Backend)
 ========================================================= */
 
 export type BackendMessageType =
@@ -30,6 +38,11 @@ export type BackendNavigationContext = {
   } | null;
 };
 
+export type BackendAuthor = {
+  id: string;
+  name: string;
+};
+
 export type BackendMessage = {
   id: string;
   tenantId: string;
@@ -41,6 +54,15 @@ export type BackendMessage = {
   parentId: string | null;
   navigationContext: BackendNavigationContext | null;
   createdAt: string;
+
+  // Included by backend findMany(include)
+  author?: BackendAuthor;
+
+  _count?: {
+    replies: number;
+  };
+
+  // Populated via WS merge, not REST
   receipts?: Record<
     string,
     {
@@ -62,24 +84,42 @@ export type FetchMessagesResponse = {
 
 function buildQuery(params: Record<string, string | number | undefined>) {
   const query = new URLSearchParams();
+
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null) {
       query.set(key, String(value));
     }
   }
+
   return query.toString();
 }
 
-function assertDataShape(data: any) {
-  if (!data) {
-    throw new Error("Invalid response shape");
+function assertOkResponse(data: any) {
+  if (!data || data.ok !== true) {
+    throw new Error(data?.error || "Invalid response shape");
   }
+}
+
+function normalizeMessage(raw: any): BackendMessage {
+  return {
+    id: raw.id,
+    tenantId: raw.tenantId,
+    caseId: raw.caseId,
+    authorId: raw.authorId,
+    type: raw.type,
+    clientMutationId: raw.clientMutationId ?? null,
+    body: raw.body ?? null,
+    parentId: raw.parentId ?? null,
+    navigationContext: raw.navigationContext ?? null,
+    createdAt: raw.createdAt,
+    author: raw.author ?? undefined,
+    _count: raw._count ?? undefined,
+    receipts: raw.receipts ?? undefined,
+  };
 }
 
 /* =========================================================
    Create Message
-   - Tenant header automatically injected by apiClient interceptor
-   - Refresh rotation handled automatically
 ========================================================= */
 
 export async function createMessage(payload: {
@@ -96,15 +136,13 @@ export async function createMessage(payload: {
 
   const { data } = await apiClient.post("/messages", payload);
 
-  assertDataShape(data);
+  assertOkResponse(data);
 
-  return data.data as BackendMessage;
+  return normalizeMessage(data.data);
 }
 
 /* =========================================================
    Fetch Messages (Cursor-Based Pagination)
-   - Rotation-safe
-   - Tenant header auto-injected
 ========================================================= */
 
 export async function fetchMessagesByCase(
@@ -123,14 +161,39 @@ export async function fetchMessagesByCase(
 
   const { data } = await apiClient.get(
     `/messages/${caseId}${query ? `?${query}` : ""}`,
-    { params: {} },
   );
 
-  assertDataShape(data);
+  assertOkResponse(data);
+
+  const messages = Array.isArray(data.data)
+    ? data.data.map(normalizeMessage)
+    : [];
 
   return {
-    messages: data.data ?? [],
+    messages,
     nextCursor: data.nextCursor ?? null,
     hasMore: Boolean(data.hasMore),
   };
 }
+
+/* =========================================================
+   Structure
+   - Types (strict backend alignment)
+   - Normalizers (defensive parsing)
+   - REST API wrappers
+========================================================= */
+
+/* =========================================================
+   Implementation guidance
+   - Use createMessage with clientMutationId for optimistic UI.
+   - Use nextCursor for infinite scroll.
+   - Merge MESSAGE_CREATED from WS via store.
+   - Merge MESSAGE_RECEIPT separately.
+========================================================= */
+
+/* =========================================================
+   Scalability insight
+   - Defensive normalization prevents silent drift.
+   - Explicit ok-check guards interceptor edge cases.
+   - Safe under backend shape extension.
+========================================================= */

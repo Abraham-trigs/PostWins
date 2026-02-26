@@ -1,7 +1,7 @@
 // apps/web/src/lib/api/explain.api.ts
 
 import { fetcher } from "@/lib/offline/fetcher";
-import { DecisionType } from "@prisma/client";
+import { DecisionType } from "../domain/decision";
 
 export const explainApi = {
   lifecycle: (caseId: string) =>

@@ -21,13 +21,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-
-      "@lib/*": ["./src/lib/*"],
-      "@components/*": ["./src/components/*"],
-      "@services/*": ["./src/services/*"],
-      "@store/*": ["./src/lib/store/*"],
-      "@app/*": ["./src/app/*"],
-
+      "@ui/*": ["./src/app/postwins/_components/*"],
+      "@postwin-store/*": ["./src/app/postwins/_components/chat/store/*"],
       "@posta/core": ["../../packages/core/src/index.ts"]
     },
 

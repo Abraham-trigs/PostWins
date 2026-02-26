@@ -3,8 +3,9 @@
 // explicit typing + seen + read tracking, ACK reconciliation, receipt propagation,
 // unread delta/reset handling, and deterministic reconnect behavior.
 
-import { usePostWinStore } from "../app/postwins/postwins/_components/chat/store/usePostWinStore";
+import { usePostWinStore } from "../app/postwins/_components/chat/store/usePostWinStore";
 import type { BackendMessage } from "@/lib/api/contracts/domain/message";
+import { mapBackendMessageToChatMessage } from "@postwin-store/mappers/message.mapper";
 
 type PresencePayload = {
   userId: string;
@@ -49,7 +50,7 @@ class WebSocketService {
   private deliveredQueue = new Set<string>();
   private deliveredFlushTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  ///////////////////////////////////////////////////////////// protocol
+  ///////////////////////////////////////////////////////////// usePostWinStore
   // CONNECT
   /////////////////////////////////////////////////////////////
 
@@ -87,7 +88,13 @@ class WebSocketService {
         switch (data.type) {
           case "MESSAGE_CREATED": {
             const state = usePostWinStore.getState();
-            state.appendMessage(data.payload);
+
+            const mapped = mapBackendMessageToChatMessage(
+              data.payload,
+              state.currentUserId ?? null,
+            );
+
+            state.appendMessage(mapped);
 
             const currentUserId = state.currentUserId;
             if (currentUserId && data.payload.authorId !== currentUserId) {
@@ -106,7 +113,7 @@ class WebSocketService {
             break;
 
           case "MESSAGE_RECEIPT":
-            usePostWinStore.getState().applyReceipt(data.payload);
+            usePostWinStore.getState().updateReceipt(data.payload);
             break;
 
           case "PRESENCE_UPDATE":

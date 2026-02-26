@@ -3,13 +3,15 @@
 
 export type DisbursementType = "PROVIDER_PAYMENT" | "BENEFICIARY_PAYMENT" | "VENDOR_PAYMENT" | "REIMBURSEMENT";
 
+export type TaskId = "START" | "ENROLL" | "ATTEND" | "MODULE_1" | "MODULE_2" | "REVIEW" | "COMPLETE";
+
 export type StakeholderRole = "DONOR" | "REGULATOR" | "OPERATOR" | "TECHNICAL" | "OBSERVER";
 
 export type CaseStatus = "INTAKED" | "ROUTED" | "ACCEPTED" | "IN_REVIEW" | "EXECUTING" | "IN_DELIVERY" | "VERIFIED" | "FLAGGED" | "COMPLETED" | "REJECTED" | "CANCELLED" | "ARCHIVED";
 
 export type DisbursementStatus = "AUTHORIZED" | "EXECUTING" | "EXECUTED" | "COMPLETED" | "FAILED";
 
-export type TaskId = "START" | "ENROLL" | "ATTEND" | "MODULE_1" | "MODULE_2";
+export type StorageProvider = "AWS_S3" | "AZURE_BLOB" | "GCP_STORAGE" | "MINIO" | "LOCAL_FS";
 
 export type ExecutionStatus = "CREATED" | "IN_PROGRESS" | "BLOCKED" | "COMPLETED" | "ABORTED";
 
@@ -44,3 +46,5 @@ export type GrantStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "CLOSED";
 export type TrancheStatus = "PLANNED" | "RELEASED" | "REVERSED";
 
 export type MessageType = "DISCUSSION" | "FOLLOW_UP" | "VERIFICATION_REQUEST" | "COUNTER_CLAIM" | "EVIDENCE_SUBMISSION";
+
+export type EvidenceDownloadPurpose = "VIEW" | "EXPORT";

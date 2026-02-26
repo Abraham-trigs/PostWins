@@ -4,7 +4,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { XoticDensityRoot } from "./postwins/_components/layout/XoticDensityRoot";
+import { XoticDensityRoot } from "./_components/layout/XoticDensityRoot";
 import AuthHydrator from "./AuthHydrator";
 
 /**
