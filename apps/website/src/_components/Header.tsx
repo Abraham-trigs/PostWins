@@ -13,8 +13,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCcw, ArrowRight, Menu, X, LogIn } from "lucide-react";
 import { ReactNode } from "react";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
-
 export default function Header(): ReactNode {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
@@ -97,7 +95,7 @@ export default function Header(): ReactNode {
           <div className="flex items-center gap-2 md:gap-4">
             {/* LOGIN → Web App */}
             <Link
-              href={`${APP_URL}/auth/login`}
+              href="https://postwins-web.vercel.app/auth/login"
               className="group flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white transition-all mr-2"
             >
               <div className="p-1.5 rounded-md group-hover:bg-slate-800 transition-colors">
@@ -135,7 +133,7 @@ export default function Header(): ReactNode {
 
             {/* DEMO → Web App Root */}
             <Link
-              href={`${APP_URL}/`}
+              href="https://postwins-web.vercel.app/"
               className="flex items-center gap-2 px-4 md:px-6 py-2.5 bg-blue-600 text-white rounded-full text-[10px] md:text-xs font-bold hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.2)] hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all active:scale-95 whitespace-nowrap"
             >
               <span>Request Demo</span>
@@ -181,7 +179,7 @@ export default function Header(): ReactNode {
 
                 <div className="pt-8 border-t border-slate-900 flex flex-col gap-6">
                   <Link
-                    href={`${APP_URL}/auth/login`}
+                    href="https://postwins-web.vercel.app/auth/login"
                     className="flex items-center gap-3 text-blue-400 font-bold uppercase tracking-widest"
                   >
                     <LogIn className="h-5 w-5" /> Login to Platform

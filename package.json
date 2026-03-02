@@ -5,9 +5,9 @@
   "packageManager": "pnpm@10.18.2",
   "scripts": {
     "dev": "turbo dev --parallel",
-    "website": "turbo dev --filter=@posta/website --parallel --cache=local:r,remote:r --daemon=false",
-    "wins": "turbo dev --filter=@posta/web --parallel --cache=local:r,remote:r --daemon=false",
-    "backend": "turbo dev --filter=@posta/backend --parallel --cache=local:r,remote:r --daemon=false",
+    "website": "turbo dev --filter=@posta/website --parallel --cache=local:r,remote:r --no-daemon",
+    "wins": "turbo dev --filter=@posta/web --parallel --cache=local:r,remote:r --no-daemon",
+    "backend": "turbo dev --filter=@posta/backend --parallel --cache=local:r,remote:r --no-daemon",
     "build": "turbo build",
     "build:website": "turbo build --filter=@posta/website",
     "typecheck": "turbo check-types",
@@ -17,7 +17,10 @@
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
     "prettier": "^3.0.0",
+    "tailwindcss": "^4.2.0",
     "ts-node": "^10.9.2",
     "turbo": "^2.8.10"
   },
@@ -25,6 +28,8 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.3",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^5.0.0"
   }
 }
