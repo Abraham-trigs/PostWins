@@ -1,22 +1,23 @@
 // apps/web/src/lib/api/cases.api.ts
-// Purpose: Resilient, abortable, deduplicated cursor-based client for GET /api/cases
+// Purpose: Resilient, abortable, deduplicated client for GET /api/cases + GET /api/cases/:id
 
-import type { ListCasesResponse } from "@posta/core";
+import type { ListCasesResponse, CaseDetailsResponse } from "@posta/core";
 import { fetcher } from "../../../offline/fetcher";
 
 /* ============================================================
-   Design reasoning
+   Assumptions
    ------------------------------------------------------------
-   - Accepts external AbortSignal (React lifecycle control).
-   - Still deduplicates identical in-flight requests.
-   - Never aborts caller-controlled signals.
-   - Clean separation between dedupe and lifecycle cancellation.
-   - Strongly typed boundary.
+   - Backend routes:
+       GET /api/cases
+       GET /api/cases/:id
+   - fetcher returns parsed JSON
+   - Response shape always includes { ok: boolean }
    ============================================================ */
 
-/**
- * Indexed access keeps UI in sync with core contract.
- */
+/* ============================================================
+   Types
+   ============================================================ */
+
 export type CaseListItem = ListCasesResponse["cases"][number];
 
 export type ListCasesParams = {
@@ -25,9 +26,13 @@ export type ListCasesParams = {
   search?: string;
 };
 
-type ListCasesOptions = {
+type RequestOptions = {
   signal?: AbortSignal;
 };
+
+/* ============================================================
+   Internal request dedupe store (list only)
+   ============================================================ */
 
 const inflight = new Map<string, AbortController>();
 
@@ -41,23 +46,18 @@ function buildQuery(params: ListCasesParams) {
   return q.toString();
 }
 
-/**
- * listCases
- *
- * - params: cursor, limit, search
- * - options.signal: external lifecycle cancellation
- */
+/* ============================================================
+   LIST CASES (lightweight projection)
+   ============================================================ */
+
 export async function listCases(
   params: ListCasesParams = {},
-  options: ListCasesOptions = {},
+  options: RequestOptions = {},
 ): Promise<ListCasesResponse> {
   const query = buildQuery(params);
   const key = `cases:${query}`;
 
-  /**
-   * Abort any identical in-flight request
-   * (dedupe behavior — not lifecycle cancellation)
-   */
+  // Abort identical in-flight request (dedupe)
   if (inflight.has(key)) {
     inflight.get(key)!.abort();
     inflight.delete(key);
@@ -66,14 +66,9 @@ export async function listCases(
   const internalController = new AbortController();
   inflight.set(key, internalController);
 
-  /**
-   * Combine signals safely:
-   * - external signal (React lifecycle)
-   * - internal dedupe signal
-   */
   const combinedController = new AbortController();
 
-  function forwardAbort(signal: AbortSignal | undefined) {
+  function forwardAbort(signal?: AbortSignal) {
     if (!signal) return;
     if (signal.aborted) {
       combinedController.abort();
@@ -99,14 +94,71 @@ export async function listCases(
     }
 
     return data as ListCasesResponse;
-  } catch (err: any) {
-    if (err?.name === "AbortError") {
-      // Controlled cancellation — not an error condition
-      throw err;
-    }
-
-    throw err;
   } finally {
     inflight.delete(key);
   }
 }
+
+/* ============================================================
+   GET CASE DETAILS (authoritative projection)
+   ============================================================ */
+
+export async function getCaseDetails(
+  id: string,
+  options: RequestOptions = {},
+): Promise<CaseDetailsResponse> {
+  if (!id) {
+    throw new Error("Case id is required");
+  }
+
+  const data = await fetcher(`/api/cases/${id}`, {
+    method: "GET",
+    credentials: "include",
+    signal: options.signal,
+  });
+
+  if (!data?.ok) {
+    throw new Error("Invalid response shape");
+  }
+
+  return data as CaseDetailsResponse;
+}
+
+/* ============================================================
+   Design reasoning
+   ------------------------------------------------------------
+   - Separation maintained:
+       listCases → lightweight navigation projection
+       getCaseDetails → authoritative heavy projection
+   - Deduping only applied to list (common repeated calls).
+   - Details endpoint respects React lifecycle cancellation.
+   - Strongly typed return contracts from core.
+   - No any, no inference guessing.
+   ============================================================ */
+
+/* ============================================================
+   Structure
+   ------------------------------------------------------------
+   - buildQuery
+   - listCases (cursor + dedupe + abort-safe)
+   - getCaseDetails (authoritative fetch)
+   ============================================================ */
+
+/* ============================================================
+   Implementation guidance
+   ------------------------------------------------------------
+   In DetailsPanel:
+     const controller = new AbortController()
+     getCaseDetails(id, { signal: controller.signal })
+
+   Abort on unmount to avoid state updates after teardown.
+   ============================================================ */
+
+/* ============================================================
+   Scalability insight
+   ------------------------------------------------------------
+   If details payload grows large (timeline, ledger, evidence),
+   consider adding:
+       GET /cases/:id?include=timeline,ledger
+   to allow partial hydration.
+   ============================================================ */

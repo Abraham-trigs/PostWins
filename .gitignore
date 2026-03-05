@@ -54,3 +54,5 @@ Thumbs.db
 # Vercel
 # ========================
 .vercel
+
+*.rdb

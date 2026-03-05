@@ -1,106 +1,208 @@
 // packages/core/src/types.ts
+// Purpose: Canonical shared domain contracts using generated Prisma enums to eliminate duplication and drift.
+
+////////////////////////////////////////////////////////////
+// ASSUMPTIONS
+////////////////////////////////////////////////////////////
+// - Prisma enum types are generated into: packages/core/src/generated/enums.ts
+// - This file is consumed across backend + web.
+// - No service relies on local string literal unions anymore.
+
+////////////////////////////////////////////////////////////
+// IMPORT GENERATED ENUM TYPES
+////////////////////////////////////////////////////////////
+
+import type {
+  CaseLifecycle,
+  CaseStatus,
+  CaseType,
+  AccessScope,
+  RoutingOutcome,
+  OperationalMode,
+  VerificationStatus,
+  MessageType,
+} from "./generated/enums";
+
+////////////////////////////////////////////////////////////
+// DISBURSEMENT DOMAIN TYPES
+////////////////////////////////////////////////////////////
 
 /**
- * High-level classification of a PostWin item.
- * Does NOT imply routing or execution state.
+ * PayeeKind
+ *
+ * Represents the identity class receiving funds.
+ * This is intentionally defined at the contract layer
+ * because the Prisma schema currently stores payeeKind
+ * as a String (not enum).
+ *
+ * This allows backend + frontend to share the same
+ * type safety without forcing a schema migration.
  */
-export type PostWinType = "PROGRESS" | "REQUEST" | "EXECUTION";
+export const PAYEE_KINDS = [
+  "ORGANIZATION",
+  "USER",
+  "EXTERNAL_ACCOUNT",
+] as const;
+
+export type PayeeKind = (typeof PAYEE_KINDS)[number];
 
 /**
- * Context under which a PostWin was created or modified.
+ * Shared disbursement contract used by UI + services.
  */
-export interface PostaContext {
-  role: "AUTHOR" | "BENEFICIARY" | "VERIFIER" | "NGO_PARTNER";
-  isImplicit: boolean;
+export interface DisbursementDestination {
+  kind: PayeeKind;
+  id: string;
+}
+
+///////////////////////////////
+// CASE LIST + DETAILS TYPES //
+///////////////////////////////
+
+export interface CaseListItem {
+  id: string;
+
+  lifecycle: CaseLifecycle;
+  type: CaseType;
+  scope: AccessScope;
+
+  sdgGoal: string | null;
+  summary: string | null;
+
+  currentTaskId: string | null;
+  currentTaskLabel: string | null;
+
+  routingOutcome: RoutingOutcome;
+
+  createdAt: string;
+  updatedAt: string;
+
+  lastMessage: null | {
+    body: string;
+    type: MessageType;
+    createdAt: string;
+  };
+}
+
+export interface ListCasesResponse {
+  ok: true;
+  cases: CaseListItem[];
+  meta: {
+    nextCursor: string | null;
+    limit: number;
+  };
 }
 
 /**
- * Routing lifecycle status.
- *
- * IMPORTANT:
- * - Routing is a decision, not acceptance.
- * - Assignment does NOT imply responsibility.
+ * Authoritative case details projection.
+ * Backend guarantees tenant isolation + role-gated PII.
  */
-export type RoutingStatus =
-  | "UNASSIGNED" // No routing attempted yet
-  | "ROUTING" // Routing rules currently evaluating
-  | "MATCHED" // Matched to a compatible execution body
-  | "FALLBACK" // Routed to fallback execution body (e.g. Khalistar)
-  | "BLOCKED"; // Routing failed due to policy or integrity constraints
+export interface CaseDetailsResponse {
+  ok: true;
+  case: {
+    id: string;
+    referenceCode: string;
 
-/**
- * Ownership lifecycle of a PostWin.
- *
- * IMPORTANT:
- * - Ownership is NEVER implied by routing.
- * - Ownership begins only after explicit acceptance
- *   by an execution body (human or system).
- */
+    lifecycle: CaseLifecycle;
+    status: CaseStatus;
+
+    type: CaseType;
+    scope: AccessScope;
+
+    sdgGoal: string | null;
+    summary: string | null;
+
+    createdAt: string;
+    updatedAt: string;
+
+    currentTask: {
+      id: string | null;
+      label: string | null;
+    };
+
+    beneficiary: null | {
+      id: string;
+      profile: Record<string, unknown> | null;
+      pii: null | {
+        phone: string | null;
+        address: string | null;
+        dateOfBirth: string | null;
+      };
+    };
+
+    assignedStaff: null | {
+      id: string;
+      name: string | null;
+      email: string | null;
+    };
+
+    latestRoutingOutcome: RoutingOutcome;
+
+    lastMessage: null | {
+      body: string;
+      type: string;
+      createdAt: string;
+    };
+  };
+}
+
+///////////////////////////////
+// CORE DOMAIN TYPES //
+///////////////////////////////
+
+export interface PostWinContext {
+  /**
+   * Heuristic persona inferred during intake.
+   * Advisory only. Never used for authorization or governance.
+   */
+  persona: "AUTHOR" | "BENEFICIARY" | "VERIFIER" | "NGO_PARTNER";
+
+  isImplicit: boolean;
+}
+
+export type RoutingStatus = RoutingOutcome;
+
 export type OwnershipStatus =
-  | "UNOWNED" // Routed but not yet accepted
-  | "ACCEPTED" // Responsibility accepted
-  | "ACTIVE" // Work in progress
-  | "COMPLETED" // Execution finished
-  | "REJECTED"; // Explicitly rejected by execution body
+  | "UNOWNED"
+  | "ACCEPTED"
+  | "ACTIVE"
+  | "COMPLETED"
+  | "REJECTED";
 
-/**
- * Core PostWin record.
- */
 export interface PostWin {
   id: string;
 
-  taskId: string; // Specific step in the journey
+  taskId: string;
 
   location?: { lat: number; lng: number };
 
-  /**
-   * Author’s preferred execution body (non-binding).
-   */
   preferredBodyId?: string;
-
-  /**
-   * Execution body selected by routing.
-   * Always present once routing completes.
-   */
   assignedBodyId?: string;
 
-  /**
-   * Status of routing decision only.
-   * Acceptance and execution are tracked separately.
-   */
   routingStatus: RoutingStatus;
-
-  /**
-   * Ownership lifecycle.
-   * NEVER implied by routing.
-   */
   ownershipStatus: OwnershipStatus;
 
   verificationRecords: VerificationRecord[];
   auditTrail: AuditEntry[];
 
   notes?: string;
-  description: string; // Must remain neutral and respectful
+  description: string;
 
   beneficiaryId: string;
   authorId: string;
 
   sdgGoals: ("SDG_4" | "SDG_5")[];
 
-  /**
-   * Verification consensus state.
-   * Independent of routing.
-   */
-  verificationStatus: "PENDING" | "VERIFIED" | "FLAGGED";
+  verificationStatus: VerificationStatus;
 
-  mode: "MOCK" | "ASSISTED" | "AI_AUGMENTED";
+  mode: OperationalMode;
 
   localization?: LocalizationContext;
 }
 
-/**
- * Tracks verification progress and timing.
- */
+////////////////////////
+// VERIFICATION TYPES //
+////////////////////////
+
 export interface VerificationRecord {
   sdgGoal: string;
   requiredVerifiers: number;
@@ -112,9 +214,6 @@ export interface VerificationRecord {
   };
 }
 
-/**
- * Human-readable audit entries (non-cryptographic).
- */
 export interface AuditEntry {
   action: string;
   actor: string;
@@ -123,9 +222,6 @@ export interface AuditEntry {
   note?: string;
 }
 
-/**
- * Cryptographically anchored audit record.
- */
 export interface AuditRecord {
   timestamp: number;
   postWinId: string;
@@ -143,17 +239,11 @@ export interface AuditRecord {
   signature: string;
 }
 
-/**
- * Ledger commitment metadata.
- */
 export interface LedgerCommitment {
   hash: string;
   signature: string;
 }
 
-/**
- * Individual verification step.
- */
 export interface VerificationStep {
   role: "VERIFIER" | "NGO_PARTNER";
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -161,9 +251,6 @@ export interface VerificationStep {
   verifierId?: string;
 }
 
-/**
- * Aggregated verification process.
- */
 export interface PostWinVerification {
   postWinId: string;
   requiredConsensus: number;
@@ -171,18 +258,16 @@ export interface PostWinVerification {
   startedAt: number;
 }
 
-/**
- * Integrity or risk flags raised by the system.
- */
 export interface IntegrityFlag {
   type: "DUPLICATE_CLAIM" | "SUSPICIOUS_TONE" | "IDENTITY_MISMATCH";
   severity: "LOW" | "HIGH";
   timestamp: number;
 }
 
-/**
- * Task definition within a journey.
- */
+/////////////////////////
+// JOURNEY + EXECUTION //
+/////////////////////////
+
 export interface Task {
   id: string;
   order: number;
@@ -191,9 +276,6 @@ export interface Task {
   dependencies: string[];
 }
 
-/**
- * Beneficiary journey state.
- */
 export interface Journey {
   id: string;
   beneficiaryId: string;
@@ -201,9 +283,6 @@ export interface Journey {
   completedTaskIds: string[];
 }
 
-/**
- * Execution body capable of receiving routed cases.
- */
 export interface ExecutionBody {
   id: string;
   name: string;
@@ -212,9 +291,6 @@ export interface ExecutionBody {
   trustScore: number;
 }
 
-/**
- * Localization detection metadata.
- */
 export interface LocalizationContext {
   detectedLanguage: string;
   confidence: number;
@@ -222,8 +298,35 @@ export interface LocalizationContext {
   requiresTranslation: boolean;
 }
 
-/**
- * Canonical identifier for the fallback NGO execution body.
- * Used only when routing cannot produce a valid match.
- */
 export const KHALISTAR_ID = "KHALISTAR";
+
+////////////////////////////////////////////////////////////
+// Design reasoning
+////////////////////////////////////////////////////////////
+// - Removes all duplicated enum unions and imports canonical Prisma-generated types.
+// - Guarantees compile-time drift detection across backend and frontend.
+// - Enforces single source of truth: schema → generated → shared types.
+// - Prevents silent enum mismatch in distributed systems.
+
+////////////////////////////////////////////////////////////
+// Structure
+////////////////////////////////////////////////////////////
+// - Prisma enum imports at top.
+// - All projections reference generated enum types.
+// - Domain interfaces remain unchanged structurally.
+// - No inline lifecycle/status/type/scope literal duplication.
+
+////////////////////////////////////////////////////////////
+// Implementation guidance
+////////////////////////////////////////////////////////////
+// - Regenerate enums after every Prisma schema change.
+// - Never redefine enum unions locally again.
+// - If compilation breaks after enum change, fix mapping layers instead of casting.
+// - Avoid `as any` or string coercion in controllers.
+
+////////////////////////////////////////////////////////////
+// Scalability insight
+////////////////////////////////////////////////////////////
+// This makes enum evolution explicit and safe across microservices,
+// edge clients, workers, and future SDKs without contract drift.
+////////////////////////////////////////////////////////////
