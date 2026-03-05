@@ -8,10 +8,12 @@ import { DetailsPanelSelected } from "./DetailsPanelSelected";
 
 type Props = {
   open: boolean; // Controls visibility of the fullscreen overlay
+  caseId: string;
   onClose: () => void; // Callback invoked on backdrop click, Escape key, or close button
 };
 
-export function DetailsFullScreenOverlay({ open, onClose }: Props) {
+// ✅ FIX: include caseId in destructuring
+export function DetailsFullScreenOverlay({ open, caseId, onClose }: Props) {
   const closeBtnRef = useRef<HTMLButtonElement | null>(null); // Used to move focus on open for accessibility
 
   // Handle Escape-to-close, body scroll lock, and initial focus management
@@ -61,7 +63,6 @@ export function DetailsFullScreenOverlay({ open, onClose }: Props) {
           "rounded-[var(--xotic-radius-lg)] overflow-hidden",
           "flex flex-col",
         ].join(" ")}
-        // Stop click propagation so interacting inside doesn't trigger backdrop close
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top bar */}
@@ -92,16 +93,16 @@ export function DetailsFullScreenOverlay({ open, onClose }: Props) {
             />
           </button>
         </div>
+
         {/* Body */}
         <div className="flex-1 min-h-0">
           {/* Pass undefined so nested panel doesn't render a dead fullscreen control */}
-          <DetailsPanelSelected onOpenFullScreen={undefined} />
+          <DetailsPanelSelected caseId={caseId} onOpenFullScreen={undefined} />
         </div>
       </section>
     </div>
   );
 }
-
 /* -------------------------------------------------------------------------------------------------
 Design reasoning
 - Replacing the raw “×” character with a Lucide icon ensures visual consistency, theming alignment, and predictable sizing.

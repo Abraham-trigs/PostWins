@@ -173,12 +173,16 @@ export function DesktopShell() {
           {activeId === null ? (
             <DetailsEmptyState />
           ) : (
-            <DetailsPanel onOpenFullScreen={() => setDetailsFullOpen(true)} />
+            <DetailsPanel
+              caseId={activeId}
+              onOpenFullScreen={() => setDetailsFullOpen(true)}
+            />
           )}
         </div>
 
         <DetailsFullScreenOverlay
           open={detailsFullOpen}
+          caseId={activeId ?? ""}
           onClose={() => setDetailsFullOpen(false)}
         />
       </div>

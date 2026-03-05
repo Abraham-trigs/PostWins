@@ -12,8 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { Maximize2 } from "lucide-react";
-import { getCaseDetails } from "@/lib/api/cases.api";
-import type { CaseDetailsResponse } from "@posta/core";
+import { getCaseDetails } from "@/lib/api/contracts/domain/cases.api";
+import type { CaseDetailsResponse } from "@/lib/api/contracts/domain/cases.api";
 import { ExplainCasePanel } from "../chat/explain/ExplainCasePanel";
 
 ////////////////////////////////////////////////////////////
@@ -174,7 +174,7 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
 
               <Section title="Current Task">
                 <p className="text-sm">
-                  {data.currentTask.label ?? "Not started"}
+                  {data.currentTask?.label ?? "Not started"}{" "}
                 </p>
               </Section>
 

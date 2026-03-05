@@ -22,6 +22,7 @@ export * from "./generated/enums";
 
 export type UUID = string;
 export * from "./contracts/domain/case-list";
+export * from "./contracts/domain/case-details";
 export * from "./contracts/domain/postwin";
 export * from "./contracts/domain/context";
 export * from "./contracts/domain/integrity";

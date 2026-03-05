@@ -4,6 +4,7 @@ import { DetailsPanelSelected } from "../details/DetailsPanelSelected";
 
 type Props = {
   open: boolean;
+  caseId: string | null;
   onClose: () => void;
   onOpenFullScreen?: () => void;
 };
@@ -11,11 +12,12 @@ type Props = {
 /**
  * TabletDetailsDrawer
  * - Slide-in drawer for tablet layouts (right side)
- * - Uses dark surface system (one/two/four/five/high)w
+ * - Uses dark surface system (one/two/four/five/high)
  * - Accessible: backdrop closes, Escape closes, focus rings visible
  */
 export function TabletDetailsDrawer({
   open,
+  caseId,
   onClose,
   onOpenFullScreen,
 }: Props) {
@@ -26,7 +28,6 @@ export function TabletDetailsDrawer({
         open ? "pointer-events-auto" : "pointer-events-none",
       ].join(" ")}
       aria-hidden={!open}
-      // Comment: Escape closes drawer (matches native drawer behavior).
       onKeyDown={(e) => {
         if (!open) return;
         if (e.key === "Escape") onClose();
@@ -39,7 +40,6 @@ export function TabletDetailsDrawer({
         onClick={onClose}
         className={[
           "absolute inset-0 transition-opacity",
-          // Comment: Dark overlay that matches the new palette (avoid pure black).
           "bg-paper/60",
           open ? "opacity-100" : "opacity-0",
         ].join(" ")}
@@ -50,21 +50,18 @@ export function TabletDetailsDrawer({
         aria-label="Details drawer"
         className={[
           "absolute inset-y-0 right-0 w-[360px] max-w-[92vw]",
-          // Comment: Main surface uses one; inner surfaces use two.
           "bg-paper border-l border-line/50 shadow-lg",
           "transition-transform will-change-transform",
           open ? "translate-x-0" : "translate-x-full",
         ].join(" ")}
       >
-        {/* Top strip (full screen + close) */}
+        {/* Top strip */}
         <div
           className={[
             "h-[var(--xotic-topbar-h)] flex items-center justify-end px-4 gap-2",
-            // Comment: Slightly lighter strip to separate header from content.
             "bg-surface-strong border-b border-line/50",
           ].join(" ")}
         >
-          {/* Full screen */}
           {onOpenFullScreen ? (
             <button
               type="button"
@@ -78,7 +75,6 @@ export function TabletDetailsDrawer({
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               ].join(" ")}
             >
-              {/* Comment: Minimal “expand” glyph (self-contained, no deps). */}
               <ExpandIcon />
             </button>
           ) : (
@@ -94,7 +90,6 @@ export function TabletDetailsDrawer({
             </div>
           )}
 
-          {/* Close */}
           <button
             type="button"
             aria-label="Close details"
@@ -107,14 +102,13 @@ export function TabletDetailsDrawer({
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             ].join(" ")}
           >
-            {/* Comment: Close icon. */}
             <CloseIcon />
           </button>
         </div>
 
         {/* Content */}
         <div className="h-[calc(100%-var(--xotic-topbar-h))]">
-          <DetailsPanelSelected />
+          {caseId && <DetailsPanelSelected caseId={caseId} />}
         </div>
       </aside>
     </div>

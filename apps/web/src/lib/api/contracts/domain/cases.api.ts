@@ -13,7 +13,7 @@ import { fetcher } from "../../../offline/fetcher";
    - fetcher returns parsed JSON
    - Response shape always includes { ok: boolean }
    ============================================================ */
-
+export type { ListCasesResponse, CaseDetailsResponse };
 /* ============================================================
    Types
    ============================================================ */
@@ -57,7 +57,6 @@ export async function listCases(
   const query = buildQuery(params);
   const key = `cases:${query}`;
 
-  // Abort identical in-flight request (dedupe)
   if (inflight.has(key)) {
     inflight.get(key)!.abort();
     inflight.delete(key);
@@ -83,7 +82,9 @@ export async function listCases(
   forwardAbort(internalController.signal);
 
   try {
-    const data = await fetcher(`/api/cases?${query}`, {
+    const url = query ? `/api/cases?${query}` : `/api/cases`;
+
+    const data = await fetcher(url, {
       method: "GET",
       credentials: "include",
       signal: combinedController.signal,
