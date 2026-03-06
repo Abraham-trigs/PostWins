@@ -1,9 +1,19 @@
-// app/components/ChatEmptyState.tsx — Calm, accessible empty state for the chat thread panel (tablet/desktop)
+// app/components/ChatEmptyState.tsx
+// Purpose: Accessible empty state for the chat panel with integrated case-start flow.
 
 "use client";
 
 import { MessageSquareText } from "lucide-react";
 import { PrimaryActionButton } from "@ui/chat/UI/common/PrimaryActionButton";
+import { usePostWinStore } from "@postwin-store/usePostWinStore";
+
+/**
+ * Assumptions
+ * - usePostWinStore exists and exposes:
+ *   - setComposerMode(mode: "record" | ...)
+ *   - appendText(role, text, mode)
+ * - PrimaryActionButton supports { label, onClick }
+ */
 
 type Variant = "tablet" | "desktop";
 
@@ -19,6 +29,40 @@ export function ChatEmptyState({
   primaryActionLabel = "Start New PostWin",
 }: ChatEmptyStateProps) {
   const isDesktop = variant === "desktop";
+
+  /**
+   * Chat store integration
+   * Enables launching the intake flow directly
+   * from the empty state panel.
+   */
+  const setComposerMode = usePostWinStore((s) => s.setComposerMode);
+  const appendMessage = usePostWinStore((s) => s.appendMessage);
+  /**
+   * Handles start-case action.
+   *
+   * Priority:
+   * 1. Use external handler if parent overrides it
+   * 2. Otherwise trigger built-in intake flow
+   */
+  function handleStartCase() {
+    if (onPrimaryAction) {
+      onPrimaryAction();
+      return;
+    }
+
+    // Switch chat composer into "record" mode
+    setComposerMode("record");
+
+    // Insert system starter message into thread
+    appendMessage({
+      id: crypto.randomUUID(),
+      kind: "text",
+      role: "system",
+      mode: "record",
+      text: "Let's create a new case. I’ll ask a few questions to get started.",
+      createdAt: new Date().toISOString(),
+    });
+  }
 
   return (
     <section
@@ -68,12 +112,11 @@ export function ChatEmptyState({
           </p>
         </div>
 
-        {/* Primary action (updated) */}
+        {/* Primary action */}
         <div className="mt-6 flex justify-center">
           <PrimaryActionButton
             label={primaryActionLabel}
-            onClick={onPrimaryAction ?? (() => {})}
-            disabled={!onPrimaryAction}
+            onClick={handleStartCase}
           />
         </div>
 
@@ -86,3 +129,20 @@ export function ChatEmptyState({
     </section>
   );
 }
+
+/*
+Design reasoning
+The empty state is used as a controlled entry point for starting a new case. Instead of forcing upstream logic to inject a handler, the component safely triggers the intake flow using the chat store. This keeps UX responsive while allowing optional override behavior when embedded in other flows.
+
+Structure
+- ChatEmptyState component
+- Store integration via usePostWinStore
+- handleStartCase helper for default intake flow
+- Accessible UI layout with visual anchor and CTA
+
+Implementation guidance
+Place this component inside the chat thread panel container when no conversation is selected. The store-driven action allows the system to immediately transition the composer into "record" mode and seed the system message that begins the intake conversation.
+
+Scalability insight
+If additional onboarding flows (e.g., "Start Verification", "Submit Evidence") are introduced later, the same pattern can extend with variant actions while keeping the UI component stable and store-driven.
+*/

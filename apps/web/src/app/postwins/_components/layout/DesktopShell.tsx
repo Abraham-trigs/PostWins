@@ -84,8 +84,18 @@ export function DesktopShell() {
 
     const loadData = async () => {
       try {
-        // Update store ID (One-way sync)
+        // Always sync the store with the selected thread
         attachIds({ projectId: activeId, postWinId: null });
+
+        const isDraft =
+          typeof activeId === "string" && activeId.startsWith("draft_");
+
+        // Draft threads have no backend data
+        if (isDraft) {
+          setTimeline([]);
+          setTimelineLoading(false);
+          return;
+        }
 
         setTimelineLoading(true);
 
@@ -106,7 +116,6 @@ export function DesktopShell() {
         console.error("Critical load failure:", error);
       }
     };
-
     loadData();
     return () => {
       mounted = false;
@@ -158,7 +167,17 @@ export function DesktopShell() {
           <section className="flex-1 overflow-hidden p-[var(--xotic-pad-6)]">
             {activeId === null ? (
               <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/40 bg-surface overflow-hidden">
-                <ChatEmptyState variant="desktop" />
+                <ChatEmptyState
+                  variant="desktop"
+                  onPrimaryAction={() => {
+                    const draftId = `draft_${crypto.randomUUID()}`;
+
+                    setActiveId(draftId);
+
+                    const store = usePostWinStore.getState();
+                    store.setComposerMode("record");
+                  }}
+                />{" "}
               </div>
             ) : (
               <div className="h-full w-full rounded-[var(--xotic-radius)] bg-surface-strong border border-line/40 overflow-hidden">
@@ -189,3 +208,5 @@ export function DesktopShell() {
     </div>
   );
 }
+
+// loadData

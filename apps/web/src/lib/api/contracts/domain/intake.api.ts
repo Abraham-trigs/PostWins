@@ -76,7 +76,7 @@ import { sha256, stableStringify } from "@/lib/offline/serializer";
 export type BootstrapResponse = {
   ok: true;
   projectId: string;
-  postWinId?: string | null;
+  referenceCode: string;
 };
 
 export type DeliveryResponse = {

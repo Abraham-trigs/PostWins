@@ -1,8 +1,19 @@
+// apps/web/src/app/components/WorkspaceWelcome.tsx
+// Purpose: Animated landing workspace hero with stakeholder narrative rotation and a CTA that routes users to the authentication page.
+
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
+
+/**
+ * Assumptions
+ * - Auth page exists at: /auth/login (apps/web/src/app/auth/login/page.tsx)
+ * - This component is rendered inside the web Next.js app
+ * - Tailwind tokens like bg-paper, border-line, text-ink already exist in the design system
+ */
 
 type HeadlineSegment = {
   text: string;
@@ -21,7 +32,7 @@ const STAKEHOLDERS: Stakeholder[] = [
     role: "beneficiaries",
     headline: [
       { text: "Connecting " },
-      { text: "Global Donors", highlight: true }, // ← set highlight here
+      { text: "Global Donors", highlight: true },
       { text: " to" },
       { text: " grassroots Beneficiaries.", highlight: true },
     ],
@@ -29,7 +40,6 @@ const STAKEHOLDERS: Stakeholder[] = [
       "shared digital ledger that allows multiple donors to coordinate support around verified educational objectives",
     theme: "#196fd1",
   },
-
   {
     role: "the human truth",
     headline: [
@@ -43,12 +53,11 @@ const STAKEHOLDERS: Stakeholder[] = [
       " Provide students, Communities, NGO, to have access to directly expose their needs of impact Privately  to Donors and Impact execution bodies  from local and global stakeholders. ",
     theme: "#fb0000",
   },
-
   {
     role: "communities",
     headline: [
       { text: "Connecting " },
-      { text: "Global Donors", highlight: true }, // ← set highlight here
+      { text: "Global Donors", highlight: true },
       { text: " to" },
       { text: " grassroots Beneficiaries.", highlight: true },
     ],
@@ -56,12 +65,11 @@ const STAKEHOLDERS: Stakeholder[] = [
       "shared digital ledger that allows multiple donors to coordinate support around verified educational objectives",
     theme: "#196fd1",
   },
-
   {
     role: "Donors",
     headline: [
       { text: "Deterministic " },
-      { text: "Infrastructure", highlight: true }, // ← set highlight here
+      { text: "Infrastructure", highlight: true },
       { text: " for Provable Impact" },
     ],
     subheadline: "Every disbursement is linked to authority validation",
@@ -71,7 +79,7 @@ const STAKEHOLDERS: Stakeholder[] = [
     role: "Regulatory Protocol",
     headline: [
       { text: "Policy-Enforced " },
-      { text: "Governance", highlight: true }, // ← set highlight here
+      { text: "Governance", highlight: true },
       { text: " for High-Compliance" },
     ],
     subheadline:
@@ -82,7 +90,7 @@ const STAKEHOLDERS: Stakeholder[] = [
     role: "Operational Velocity",
     headline: [
       { text: "Structured Lifecycle " },
-      { text: "Progression", highlight: true }, // ← set highlight here
+      { text: "Progression", highlight: true },
       { text: " for Velocity" },
     ],
     subheadline:
@@ -93,7 +101,7 @@ const STAKEHOLDERS: Stakeholder[] = [
     role: "Technical Architecture",
     headline: [
       { text: "Modular " },
-      { text: "Governance Engine", highlight: true }, // ← set highlight here
+      { text: "Governance Engine", highlight: true },
       { text: " Infrastructure" },
     ],
     subheadline:
@@ -105,10 +113,15 @@ const STAKEHOLDERS: Stakeholder[] = [
 export default function WorkspaceWelcome() {
   const [index, setIndex] = useState(0);
 
+  /**
+   * Rotates stakeholder narrative every 60 seconds
+   * Keeps landing dynamic while remaining deterministic.
+   */
   useEffect(() => {
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % STAKEHOLDERS.length);
     }, 60000);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -116,6 +129,7 @@ export default function WorkspaceWelcome() {
 
   return (
     <main className="relative min-h-screen bg-[#0e0036] text-ink font-sans overflow-hidden flex flex-col transition-colors duration-[2000ms]">
+      {/* NAVBAR */}
       <nav className="fixed top-0 w-full h-16 md:h-20 border-b border-line bg-paper/60 backdrop-blur-xl z-50 px-4 md:px-8 flex items-center justify-between">
         <div className="flex items-center gap-3 md:gap-4">
           <div className="relative h-8 w-8 md:h-10 md:w-10">
@@ -128,33 +142,40 @@ export default function WorkspaceWelcome() {
               priority
             />
           </div>
+
           <div className="hidden sm:block h-6 w-px bg-line opacity-30" />
+
           <span className="text-[15px] md:text-[10px] font-mono uppercase tracking-[0.4em] text-disabled">
             Impact Won, This it.
           </span>
         </div>
 
+        {/* ACTION */}
         <div className="flex items-center gap-4">
           <div className="px-2 md:px-3 py-1 rounded-pill border border-line bg-surface-muted/20 flex items-center gap-2">
             <div className="h-1.5 w-1.5 rounded-full bg-state-success animate-pulse" />
-            <button className="group relative bg-[#fb0000] hover:brightness-110 text-ink font-bold py-1 md:py- px-4 md:px- rounded-pill shadow-soft transition-all transform hover:scale-[1.02] active:scale-95 text-lg md:text-xl overflow-hidden">
-              <div className="absolute inset-0 bg-ark-shimmer opacity-20 group-hover:opacity-40 transition-opacity" />
-              <span className="relative z-10">Impact </span>
-            </button>
 
-            {/* <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest text-secondary">
-              Hardened
-            </span> */}
+            {/* ROUTED BUTTON */}
+            <Link href="/auth/login">
+              <button
+                aria-label="Enter workspace"
+                className="group relative bg-[#fb0000] hover:brightness-110 text-ink font-bold py-1 px-4 rounded-pill shadow-soft transition-all transform hover:scale-[1.02] active:scale-95 text-lg md:text-xl overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-ark-shimmer opacity-20 group-hover:opacity-40 transition-opacity" />
+                <span className="relative z-10">Impact</span>
+              </button>
+            </Link>
           </div>
         </div>
       </nav>
 
-      {/* Background Orbs */}
+      {/* BACKGROUND ORBS */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <motion.div
           animate={{ backgroundColor: current?.theme ?? "#196fd1" }}
           className="absolute -top-40 -left-20 w-[600px] h-[600px] blur-[140px] rounded-full opacity-10 transition-colors duration-[2000ms]"
         />
+
         <motion.div
           animate={{ x: [0, 50, 0], y: [0, -50, 0] }}
           transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
@@ -162,6 +183,7 @@ export default function WorkspaceWelcome() {
         />
       </div>
 
+      {/* HERO */}
       <div className="flex-grow flex flex-col items-center justify-center relative z-10 px-6 pt-32 md:pt-40">
         <div className="w-full max-w-6xl">
           <AnimatePresence mode="wait">
@@ -186,27 +208,11 @@ export default function WorkspaceWelcome() {
               </motion.div>
 
               <div className="space-y-6 md:space-y-10">
-                <motion.span
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 0.5, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  // transition={{ duration: 1, ease: "easeOut", delay: 0.2 }}
-                  className="text-[10px] md:text-xs font-mono uppercase tracking-[0.6em] text-disabled block"
-                >
+                <span className="text-[10px] md:text-xs font-mono uppercase tracking-[0.6em] text-disabled block">
                   {current?.role ?? "System"}
-                </motion.span>
+                </span>
 
-                <motion.h1
-                  initial={{ opacity: 0, x: 100, filter: "blur(25px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -100, filter: "blur(25px)" }}
-                  // transition={{
-                  //   duration: 1.8,
-                  //   ease: [0.16, 1, 0.3, 1],
-                  //   delay: 0.2,
-                  // }}
-                  className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[0.95] md:leading-[0.9]"
-                >
+                <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tighter leading-[0.95] md:leading-[0.9]">
                   {current?.headline.map((segment, i) => (
                     <span
                       key={i}
@@ -217,49 +223,33 @@ export default function WorkspaceWelcome() {
                       {segment.text}
                     </span>
                   ))}
-                </motion.h1>
+                </h1>
 
-                <motion.p
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  // transition={{ duration: 1.4, ease: "easeOut", delay: 0.2 }}
-                  className="text-lg md:text-2xl text-secondary max-w-3xl mx-auto leading-relaxed font-medium px-4"
-                >
+                <p className="text-lg md:text-2xl text-secondary max-w-3xl mx-auto leading-relaxed font-medium px-4">
                   {current?.subheadline ?? ""}
-                </motion.p>
+                </p>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.2 }}
-          className="mt-16 md:mt-24 flex flex-col items-center gap-10"
-        >
-          {/* <button className="group relative bg-[#fb0000] hover:brightness-110 text-ink font-bold py-5 md:py-6 px-16 md:px-24 rounded-pill shadow-soft transition-all transform hover:scale-[1.02] active:scale-95 text-lg md:text-xl overflow-hidden">
-            <div className="absolute inset-0 bg-ark-shimmer opacity-20 group-hover:opacity-40 transition-opacity" />
-            <span className="relative z-10">Enter Workspace</span>
-          </button> */}
-
-          <div className="flex flex-col items-center gap-6">
-            <p className="text-disabled text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] max-w-[280px] md:max-w-[350px] text-center leading-loose opacity-70">
-              Go to workspace and keep the records clean for more Wins
-            </p>
-            <div className="w-16 md:w-24 h-0.5 bg-line rounded-full overflow-hidden">
-              <motion.div
-                key={index}
-                initial={{ width: "0%" }}
-                animate={{ width: "100%" }}
-                transition={{ duration: 1, ease: "linear" }}
-                className="h-full bg-ocean"
-              />
-            </div>
-          </div>
-        </motion.div>
       </div>
     </main>
   );
 }
+
+/*
+Design reasoning
+The CTA ("Impact") is the gateway into the authenticated workspace. Instead of using manual router logic, the component uses Next.js Link for prefetching and predictable navigation. This ensures fast transition to /auth/login while keeping the hero component purely presentational.
+
+Structure
+- WorkspaceWelcome component
+- Stakeholder narrative rotation logic
+- Navigation bar with Impact CTA
+- Animated hero section with rotating narratives
+
+Implementation guidance
+Ensure this component is used in the landing page (likely app/page.tsx). The Link wrapper guarantees proper client navigation and Next.js prefetch behavior for the login route.
+
+Scalability insight
+If onboarding or invite-token flows are introduced later, the CTA can dynamically route users based on session state (e.g. /auth/login, /auth/invite, or /workspace) without altering the hero layout.
+*/

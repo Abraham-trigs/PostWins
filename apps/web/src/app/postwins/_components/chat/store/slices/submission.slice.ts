@@ -9,6 +9,27 @@ import {
   normalizeDeliveryItems,
 } from "@postwin-store/helpers";
 
+/**
+ * =========================================================
+ * Assumptions
+ * =========================================================
+ * - Backend POST /api/intake/bootstrap returns:
+ *   { ok: true, projectId: string, referenceCode: string }
+ *
+ * - Backend POST /api/intake/delivery returns:
+ *   { ok: true, type: "EXECUTION_PROGRESS_RECORDED", projectId, deliveryId }
+ *
+ * - Other slices expose:
+ *   appendEvent()
+ *   setEventStatus()
+ *   attachIds()
+ *   appendText()
+ *   clearComposer()
+ *   setComposerMode()
+ *
+ * - Draft + delivery state owned by their respective slices.
+ */
+
 /* =========================================================
    Design reasoning
    ---------------------------------------------------------
@@ -43,14 +64,25 @@ import {
    - submitDelivery()
 ========================================================= */
 
+type BootstrapResponse = {
+  ok: true;
+  projectId: string;
+  referenceCode: string;
+};
+
+type DeliveryResponse = {
+  ok: true;
+  type: "EXECUTION_PROGRESS_RECORDED";
+  projectId: string;
+  deliveryId: string;
+};
+
 type SubmissionSlice = {
   submitting: boolean;
   error?: string;
 
   submitBootstrap: (opts: {
-    submit: (
-      draft: PostWinDraft,
-    ) => Promise<{ projectId: string; postWinId?: string | null }>;
+    submit: (draft: PostWinDraft) => Promise<BootstrapResponse>;
   }) => Promise<void>;
 
   submitDelivery: (opts: {
@@ -64,12 +96,7 @@ type SubmissionSlice = {
         notes?: string;
       },
       ctx: { transactionId: string },
-    ) => Promise<{
-      ok: true;
-      type: "DELIVERY_RECORDED";
-      projectId: string;
-      deliveryId: string;
-    }>;
+    ) => Promise<DeliveryResponse>;
   }) => Promise<void>;
 };
 
@@ -115,9 +142,20 @@ export const createSubmissionSlice: StateCreator<
       const res = await submit(draft);
 
       state.setEventStatus(eventId, "logged");
+
+      /**
+       * Backend only returns projectId + referenceCode.
+       * postWinId no longer exists.
+       */
       state.attachIds({
         projectId: res.projectId,
-        postWinId: res.postWinId ?? null,
+        postWinId: null,
+      });
+
+      state.patchDraft({
+        narrative: "",
+        evidence: [],
+        hasEvidence: false,
       });
 
       set({ submitting: false }, false, "bootstrap:success");
@@ -223,7 +261,7 @@ export const createSubmissionSlice: StateCreator<
       );
 
       set(
-        (state) => ({
+        () => ({
           deliveryTxId: null,
           deliveryDraft: {
             location: "",
@@ -249,29 +287,31 @@ export const createSubmissionSlice: StateCreator<
   },
 });
 
-/* =========================================================
-   Implementation guidance
-   ---------------------------------------------------------
-   - Relies on:
-       appendEvent
-       setEventStatus
-       attachIds
-       appendText
-       clearComposer
-       setComposerMode
-   - These must exist in composed slices.
-   - No slice imports others directly.
-========================================================= */
+/**
+ * =========================================================
+ * Implementation guidance
+ * ---------------------------------------------------------
+ * - Relies on:
+ *     appendEvent
+ *     setEventStatus
+ *     attachIds
+ *     appendText
+ *     clearComposer
+ *     setComposerMode
+ * - These must exist in composed slices.
+ * - No slice imports others directly.
+ */
 
-/* =========================================================
-   Scalability insight
-   ---------------------------------------------------------
-   If you later introduce:
-   - Offline queueing
-   - Optimistic delivery logging
-   - Retry strategies
-   - Idempotent replay
-
-   All orchestration logic evolves here without touching
-   draft, delivery, or timeline slices.
-========================================================= */
+/**
+ * =========================================================
+ * Scalability insight
+ * ---------------------------------------------------------
+ * If later you introduce:
+ * - Offline queue replay
+ * - Optimistic delivery logging
+ * - Retry strategies
+ * - Idempotent command replay
+ *
+ * This orchestration layer evolves without touching
+ * draft, delivery, or timeline slices.
+ */

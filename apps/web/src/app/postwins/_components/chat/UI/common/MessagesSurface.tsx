@@ -1,5 +1,5 @@
 // src/app/xotic/postwins/_components/chat/MessagesSurface.tsx
-// Purpose: Unified feed container delegating to ChatBubble and TimelineBubble
+// Purpose: Unified feed container delegating to ChatBubble, TimelineBubble and Intake bubbles.
 
 "use client";
 
@@ -10,32 +10,44 @@ import type { ThreadMessage } from "../../store/types";
 import type { CaseTimelineEvent } from "../../store/slices/caseTimeline.slice";
 import { ChatBubble } from "./ChatBubble";
 import { TimelineBubble } from "@ui/chat/UI/common/TimelineBubble";
+import { QuestionnaireBubble } from "../../questionaire/QuestionnaireBubble";
 
 /* =========================================================
-   Design reasoning
-   ---------------------------------------------------------
-   MessagesSurface is now a pure router.
-   It does not render bubbles directly.
-
-   It:
-   - Retrieves unified feed
-   - Routes by kind
-   - Manages scroll behavior
-
-   Presentation logic is delegated.
+   Feed Types
 ========================================================= */
 
 type UnifiedFeedItem =
   | { kind: "chat"; timestamp: string; data: ThreadMessage }
-  | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent };
+  | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent }
+  | { kind: "questionnaire"; timestamp: string };
+
+/* =========================================================
+   Component
+========================================================= */
 
 export function MessagesSurface() {
   const getUnifiedFeed = usePostWinStore((s) => s.getUnifiedFeed);
   const currentUserId = usePostWinStore((s) => s.currentUserId);
+  const composerMode = usePostWinStore((s) => s.composerMode);
+
+  console.log("composerMode", composerMode);
 
   const feed: UnifiedFeedItem[] = useMemo(() => {
-    return getUnifiedFeed() as UnifiedFeedItem[];
-  }, [getUnifiedFeed]);
+    const base = getUnifiedFeed() as UnifiedFeedItem[];
+
+    // When intake mode is active we append the questionnaire
+    if (composerMode === "record") {
+      return [
+        ...base,
+        {
+          kind: "questionnaire",
+          timestamp: new Date().toISOString(),
+        },
+      ];
+    }
+
+    return base;
+  }, [getUnifiedFeed, composerMode]);
 
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -66,7 +78,17 @@ export function MessagesSurface() {
                 );
               }
 
-              return <TimelineBubble key={`timeline-${i}`} event={item.data} />;
+              if (item.kind === "timeline") {
+                return (
+                  <TimelineBubble key={`timeline-${i}`} event={item.data} />
+                );
+              }
+
+              if (item.kind === "questionnaire") {
+                return <QuestionnaireBubble key={`questionnaire-${i}`} />;
+              }
+
+              return null;
             })
           )}
         </div>
@@ -76,6 +98,10 @@ export function MessagesSurface() {
     </div>
   );
 }
+
+/* =========================================================
+   Empty State
+========================================================= */
 
 function EmptyState() {
   return (
@@ -90,8 +116,12 @@ function EmptyState() {
 
 /* =========================================================
    Scalability insight
-   ---------------------------------------------------------
-   Future feed types (system alerts, moderation flags,
-   pinned messages) can be added by extending the
-   UnifiedFeedItem union and adding new render branches.
+---------------------------------------------------------
+   Future feed types can include:
+
+   system alerts
+   moderation flags
+   pinned messages
+   questionnaires
+   verification requests
 ========================================================= */
