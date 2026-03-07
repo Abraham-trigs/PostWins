@@ -258,7 +258,6 @@ export function QuestionnaireBubble() {
                     onChange={(e) => setValue(e.target.value)}
                   />
                 </div>
-
                 <button
                   onClick={() => {
                     setNewBeni({ ...newBeni, displayName: value });

@@ -86,7 +86,12 @@ export type ThreadMessage = {
    Composer
 ========================================================= */
 
-export type ComposerMode = "record" | "followup" | "verify" | "delivery";
+export type ComposerMode =
+  | "discussion"
+  | "record"
+  | "followup"
+  | "verify"
+  | "delivery";
 
 /* =========================================================
    Evidence

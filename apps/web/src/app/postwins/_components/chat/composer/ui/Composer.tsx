@@ -13,27 +13,10 @@ import {
 import { getModeCopy } from "@ui/chat/composer/modeCopy";
 import { useAttachmentPicker } from "@ui/chat/composer/useAttachmentPicker";
 
-import {
-  createMessage,
-  type BackendMessageType,
-} from "@/lib/api/contracts/domain/message";
+import { createMessage } from "@/lib/api/contracts/domain/message";
 
-/* =========================================================
-   Mode Mapping
-========================================================= */
-
-function mapModeToMessageType(mode: string): BackendMessageType {
-  switch (mode) {
-    case "record":
-      return "DISCUSSION";
-    case "verify":
-      return "VERIFICATION_REQUEST";
-    case "delivery":
-      return "FOLLOW_UP";
-    default:
-      return "DISCUSSION";
-  }
-}
+// 🚀 IMPORTED MAPPER LOGIC
+import { mapModeToBackendType } from "../../store/mappers/message.mapper";
 
 export function Composer() {
   const inputId = useId();
@@ -41,7 +24,6 @@ export function Composer() {
   const trayRef = useRef<HTMLDivElement>(null);
 
   /* ================= Store Selectors ================= */
-
   const mode = usePostWinStore((s) => s.composerMode);
   const text = usePostWinStore((s) => s.composerText);
   const submitting = usePostWinStore((s) => s.submitting);
@@ -57,78 +39,64 @@ export function Composer() {
   const caseId = usePostWinStore((s) => s.activeCaseId);
   const currentUserId = usePostWinStore((s) => s.currentUserId);
 
-  const { attachOpen, setAttachOpen, attachWrapRef } = useAttachmentPicker();
+  const { setAttachOpen, attachWrapRef } = useAttachmentPicker();
+
+  /* ================= Capabilities (ALIGNED WITH BACKEND) ================= */
+  // Technical IDs (record, followup, etc.) stay behind the scenes.
+  // Labels (Discussion, Evidence, etc.) are shown to the user.
+  const capabilities = useMemo(
+    () => [
+      { id: "record", label: "Discussion", active: mode === "record" },
+      { id: "followup", label: "Follow Up", active: mode === "followup" },
+      { id: "verify", label: "Verify", active: mode === "verify" },
+      { id: "delivery", label: "Evidence", active: mode === "delivery" },
+    ],
+    [mode],
+  );
 
   /* ================= Derived ================= */
+  const activeLabel = useMemo(
+    () => capabilities.find((c) => c.id === mode)?.label || "Discussion",
+    [mode, capabilities],
+  );
 
-  const copy = useMemo(() => getModeCopy(mode), [mode]);
-  const { placeholder, modeLabel } = copy;
-  const canSubmit = text.trim().length > 0;
+  const { placeholder } = useMemo(() => getModeCopy(mode), [mode]);
+
+  // 🛑 GATE: Identify if the current active case is a local UI-only draft
+  const isDraft = caseId?.startsWith("draft_");
+
+  // Logic: canSubmit is true for typing, but we block it during the Intake (isDraft)
+  const canSubmit = text.trim().length > 0 && !isDraft;
 
   /* ================= Click Outside Close ================= */
-
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (trayRef.current && !trayRef.current.contains(e.target as Node)) {
         setActionsOpen(false);
       }
     };
-
-    if (actionsOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
+    if (actionsOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [actionsOpen]);
 
-  /* ================= Capabilities ================= */
-
-  const capabilities = useMemo(
-    () => [
-      { id: "record", label: "Record", active: mode === "record" },
-      { id: "verify", label: "Verify", active: mode === "verify" },
-      { id: "delivery", label: "Delivery", active: mode === "delivery" },
-    ],
-    [mode],
-  );
-
   function buildNavigationContext(): NavigationContext | null {
     if (mode !== "verify" || !caseId) return null;
-
     return {
       target: "TASK",
       id: caseId,
       label: "Review Case Details",
-      params: {
-        highlight: true,
-        focus: true,
-        mode: "peek",
-      },
+      params: { highlight: true, focus: true, mode: "peek" },
     };
   }
 
-  /* =========================================================
-     Submit Logic (Optimistic UI + Backend Sync + Draft Gated)
-  ========================================================= */
-
+  /* ================= Submit Logic ================= */
   const handleSubmit = async () => {
-    if (!canSubmit || submitting) return;
+    if (!canSubmit || submitting || isDraft) return;
 
     const trimmed = text.trim();
     const { tenantId } = useAuthStore.getState();
 
-    // 🛑 GATE: Identify if the current active case is a local UI-only draft
-    const isDraft = caseId?.startsWith("draft_");
-
-    // Block submission if fields are missing OR the case hasn't been born in the DB yet
-    if (!trimmed || !caseId || isDraft || !currentUserId || !tenantId) {
-      if (isDraft) {
-        console.warn(
-          "Message blocked: Project bootstrap is still in progress.",
-        );
-      }
-      return;
-    }
+    if (!trimmed || !caseId || !currentUserId || !tenantId) return;
 
     const tempId = crypto.randomUUID();
 
@@ -142,22 +110,18 @@ export function Composer() {
     };
 
     try {
-      // 1️⃣ Optimistic insert (UI domain)
       appendMessage(optimisticMessage);
       clearComposer();
 
-      // 2️⃣ Backend call (transport domain)
-      // This will now only execute for real, persisted UUIDs
       const serverMessage = await createMessage({
         caseId,
-        type: mapModeToMessageType(mode),
+        type: mapModeToBackendType(mode as any), // 🚀 USES MAPPER
         body: trimmed,
         parentId: null,
         navigationContext: buildNavigationContext(),
         clientMutationId: tempId,
       });
 
-      // 3️⃣ Confirm (replace temp ID with real ID)
       confirmMessage(tempId, serverMessage.id);
     } catch (err) {
       rollbackMessage(tempId);
@@ -166,10 +130,7 @@ export function Composer() {
     }
   };
 
-  /* =========================================================
-     Render
-  ========================================================= */
-
+  /* ================= Render ================= */
   return (
     <footer className="h-[var(--xotic-composer-h)] px-[var(--xotic-pad-6)] flex items-center gap-4 bg-paper border-t border-line/40 relative">
       <div className="relative" ref={trayRef}>
@@ -184,7 +145,8 @@ export function Composer() {
             }`}
         >
           {actionsOpen ? <IconX size={14} /> : <IconPlus size={14} />}
-          Actions
+          {/* 🏷️ LABELED ACTIONS UX: Button shows active label instead of "Actions" when closed */}
+          {actionsOpen ? "Actions" : activeLabel}
         </button>
 
         {actionsOpen && (
@@ -196,7 +158,7 @@ export function Composer() {
                   setComposerMode(cap.id as any);
                   setActionsOpen(false);
                 }}
-                className={`px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors
+                className={`px-3 py-2.5 rounded-xl text-left text-xs font-semibold transition-colors
                   ${
                     cap.active
                       ? "bg-blue-50 text-blue-600"
@@ -214,7 +176,6 @@ export function Composer() {
         <div className="relative group" ref={attachWrapRef}>
           <button
             type="button"
-            onClick={() => setAttachOpen((v) => !v)}
             className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full grid place-items-center text-ink/40 hover:text-ink hover:bg-surface transition-colors"
           >
             <IconPaperclip size={16} />
@@ -231,14 +192,19 @@ export function Composer() {
                 handleSubmit();
               }
             }}
-            className="w-full h-11 rounded-full pl-11 pr-4 text-sm border border-line/40 bg-surface focus:bg-paper focus:ring-2 focus:ring-blue-100 outline-none text-ink"
+            disabled={isDraft}
+            className="w-full h-11 rounded-full pl-11 pr-4 text-sm border border-line/40 bg-surface focus:bg-paper focus:ring-2 focus:ring-blue-100 outline-none text-ink disabled:opacity-50"
           />
         </div>
 
         <div className="mt-1.5 px-4 flex items-center gap-2">
-          <span className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-[10px] uppercase tracking-widest font-bold text-blue-600/80">
-            {modeLabel}
+          <span
+            className={`h-1 w-1 rounded-full animate-pulse ${isDraft ? "bg-orange-500" : "bg-blue-500"}`}
+          />
+          <span
+            className={`text-[10px] uppercase tracking-widest font-bold ${isDraft ? "text-orange-600" : "text-blue-600/80"}`}
+          >
+            {isDraft ? "Intake Questionnaire Active" : activeLabel}
           </span>
         </div>
       </div>
