@@ -39,6 +39,12 @@ export type NavigationContext = {
   label?: string;
 };
 
+/*=========================================================
+VIEW FILTER
+===========================================================*/
+
+export type FeedFilter = "all" | "record" | "followup" | "verify" | "delivery";
+
 /* =========================================================
    Delivery Receipt (UI lifecycle only)
 ========================================================= */

@@ -1,4 +1,41 @@
+// src/app/postwins/_components/chat/store/usePostWinStore.ts
+// Purpose: Zustand store managing PostWins chat + timeline feed with functional UI view modes (record, followup, verify, delivery).
+
 "use client";
+
+/*
+Design reasoning
+---------------
+The store manages unified conversation state across chat messages, timeline
+events, and UI view modes. The `activeView` represents the current functional
+conversation context, while `viewActivity` tracks activity indicators for each
+mode (record, followup, verify, delivery). When a user switches to a view,
+its activity indicator is cleared automatically.
+
+Structure
+---------
+FeedView        → UI conversation modes
+FeedItem        → Unified feed model
+PostWinState    → Zustand store interface
+usePostWinStore → Zustand implementation
+getUnifiedFeed  → selector merging messages + timeline with view filtering
+
+Implementation guidance
+-----------------------
+Switching UI modes:
+
+const setView = usePostWinStore(s => s.setActiveView)
+setView("verify")
+
+Reading unified feed:
+
+const feed = usePostWinStore(s => s.getUnifiedFeed())
+
+Scalability insight
+-------------------
+Additional conversation modes (appeals, governance, dispute resolution)
+can be introduced by extending FeedView and aligning message.mode.
+*/
 
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
@@ -13,7 +50,7 @@ import {
   createCaseTimelineSlice,
   type CaseTimelineSlice,
   type CaseTimelineEvent,
-  getEventTimestamp, // Added this import
+  getEventTimestamp,
 } from "./slices/caseTimeline.slice";
 import { createLifecycleSlice } from "./slices/lifecycle.slice";
 import { createQuestionnaireSlice } from "./slices/questionnaire.slice";
@@ -25,6 +62,8 @@ import { createSubmissionSlice } from "./slices/submission.slice";
 import { mapBackendMessageToChatMessage } from "@postwin-store/mappers/message.mapper";
 
 /* ===================== Feed Model ===================== */
+
+export type FeedView = "all" | "record" | "followup" | "verify" | "delivery";
 
 type FeedItem =
   | { kind: "chat"; timestamp: string; data: ChatMessage }
@@ -60,6 +99,18 @@ export type PostWinState = ChatSlice &
     fetchMessages: (caseId: string) => Promise<void>;
     fetchMoreMessages: (caseId: string) => Promise<void>;
 
+    /* UI conversation view state */
+    activeView: FeedView;
+
+    viewActivity: {
+      record: boolean;
+      followup: boolean;
+      verify: boolean;
+      delivery: boolean;
+    };
+
+    setActiveView: (view: FeedView) => void;
+
     getUnifiedFeed: () => FeedItem[];
   };
 
@@ -69,6 +120,7 @@ export const usePostWinStore = create<PostWinState>()(
   devtools(
     (set, get, ...a) => ({
       /* ======== Slices ======== */
+
       ...createChatSlice(set, get, ...a),
       ...createCaseTimelineSlice(set, get, ...a),
       ...createLifecycleSlice(set, get, ...a),
@@ -79,11 +131,43 @@ export const usePostWinStore = create<PostWinState>()(
       ...createSubmissionSlice(set, get, ...a),
 
       /* ======== Identity ======== */
+
       currentUserId: null,
+
       setCurrentUserId: (id: string) =>
         set({ currentUserId: id }, false, "identity/setCurrentUserId"),
 
+      /* ======== UI View State ======== */
+
+      activeView: "all",
+
+      viewActivity: {
+        record: false,
+        followup: false,
+        verify: false,
+        delivery: false,
+      },
+
+      setActiveView: (view: FeedView) => {
+        set({ activeView: view }, false, "ui/setActiveView");
+
+        // Clear activity indicator when selected
+        if (view !== "all") {
+          set(
+            (state) => ({
+              viewActivity: {
+                ...state.viewActivity,
+                [view]: false,
+              },
+            }),
+            false,
+            "ui/clearViewActivity",
+          );
+        }
+      },
+
       /* ======== Unread ======== */
+
       unreadByCase: {},
 
       incrementUnread: (caseId: string, delta: number) =>
@@ -113,8 +197,10 @@ export const usePostWinStore = create<PostWinState>()(
         set({ unreadAnchor: messageId }, false, "unread/setAnchor"),
 
       /* ======== Initial Fetch ======== */
+
       fetchMessages: async (caseId: string) => {
         const { isAuthenticated, isHydrated } = useAuthStore.getState();
+
         if (!caseId || !isAuthenticated || !isHydrated) return;
 
         try {
@@ -139,6 +225,7 @@ export const usePostWinStore = create<PostWinState>()(
       },
 
       /* ======== Pagination Fetch ======== */
+
       fetchMoreMessages: async (caseId: string) => {
         const { isAuthenticated, isHydrated } = useAuthStore.getState();
         const { nextCursor, hasMore, isFetchingMore } = get();
@@ -175,10 +262,16 @@ export const usePostWinStore = create<PostWinState>()(
       },
 
       /* ===================== Unified Feed ===================== */
-      getUnifiedFeed: () => {
-        const { messages, events } = get();
 
-        const chatFeed: FeedItem[] = messages.map((m) => ({
+      getUnifiedFeed: () => {
+        const { messages, events, activeView } = get();
+
+        const filteredMessages = messages.filter((m) => {
+          if (activeView === "all") return true;
+          return m.mode === activeView;
+        });
+
+        const chatFeed: FeedItem[] = filteredMessages.map((m) => ({
           kind: "chat",
           timestamp: m.createdAt,
           data: m,
@@ -201,3 +294,12 @@ export const usePostWinStore = create<PostWinState>()(
     },
   ),
 );
+
+/*
+Example usage
+
+const setView = usePostWinStore(s => s.setActiveView)
+setView("verify")
+
+const feed = usePostWinStore(s => s.getUnifiedFeed)
+*/

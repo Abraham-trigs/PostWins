@@ -20,11 +20,13 @@
 import { useEffect, useRef } from "react";
 
 type Params = {
-  containerRef: React.RefObject<HTMLDivElement>;
-  dependency: any; // usually messages.length
-  threshold?: number; // px distance from bottom
+  // Change this line to accept both Mutable and Read-only refs
+  containerRef:
+    | React.RefObject<HTMLDivElement | null>
+    | React.MutableRefObject<HTMLDivElement | null>;
+  dependency: any;
+  threshold?: number;
 };
-
 export function useSmartAutoScroll({
   containerRef,
   dependency,

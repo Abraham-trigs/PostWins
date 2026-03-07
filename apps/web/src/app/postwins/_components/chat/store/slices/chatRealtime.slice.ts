@@ -1,24 +1,18 @@
-// src/app/xotic/postwins/_components/chat/store/postwins/slices/chatRealtime.slice.ts
-// Purpose: WebSocket integration, presence/typing state, and unread management
+"use client";
 
 /**
  * ============================
  * Design reasoning
  * ============================
- * This slice owns all real-time transport concerns:
- * - WS message ingestion
- * - Receipt propagation
- * - Presence tracking
- * - Typing indicators
- * - Unread counter
- *
- * Public contract compatibility is preserved (setPresence, setTyping).
- * No behavioral regression from previous store structure.
+ * Updated to support "View-Aware" real-time ingestion.
+ * When a message arrives, we now check the user's active ViewToggle state
+ * to trigger side-bar notifications for hidden content.
  */
 
 import type { StateCreator } from "zustand";
 import type { ChatMessage } from "../types";
 import type { ChatMessagesSlice } from "./chatMessages.slice";
+import type { PostWinState } from "../usePostWinStore"; // 🚀 Import main state type
 
 /* ============================
    Types
@@ -59,7 +53,7 @@ export interface ChatRealtimeSlice {
 ============================ */
 
 export const createChatRealtimeSlice: StateCreator<
-  ChatMessagesSlice & ChatRealtimeSlice,
+  ChatMessagesSlice & ChatRealtimeSlice & PostWinState, // 🚀 Bind to full state for notify logic
   [["zustand/devtools", never]],
   [],
   ChatRealtimeSlice
@@ -104,24 +98,43 @@ export const createChatRealtimeSlice: StateCreator<
 
   /* ================= WS Message ================= */
 
-  applyWsMessage: (incoming) =>
-    set(
-      (state) => {
-        // Prevent duplication (optimistic + WS race-safe)
-        if (state.messages.some((m) => m.id === incoming.id)) {
-          return state;
-        }
+  applyWsMessage: (incoming) => {
+    // 1. Prevent duplication (optimistic + WS race-safe)
+    if (get().messages.some((m) => m.id === incoming.id)) {
+      return;
+    }
 
-        return {
-          messages: [...state.messages, incoming].sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-          ),
-        };
-      },
+    // 2. 🔔 UI NOTIFICATION LOGIC
+    // Check if the incoming message mode matches a hidden view
+    const activeView = get().activeView;
+    const mode = incoming.mode ?? "record";
+
+    if (activeView !== "all" && activeView !== mode) {
+      // Trigger the pulsing dot on the relevant ViewToggle button
+      get().set(
+        {
+          viewActivity: {
+            ...get().viewActivity,
+            [mode]: true,
+          },
+        },
+        false,
+        "ui/notifyViewActivity",
+      );
+    }
+
+    // 3. Commit message to state
+    set(
+      (state) => ({
+        messages: [...state.messages, incoming].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        ),
+      }),
       false,
       "chatRealtime/applyWsMessage",
-    ),
+    );
+  },
 
   /* ================= Receipt ================= */
 
@@ -152,27 +165,3 @@ export const createChatRealtimeSlice: StateCreator<
       "chatRealtime/updateReceipt",
     ),
 });
-
-/**
- * ============================
- * Structure
- * - presence state
- * - typing state
- * - unread tracking
- * - ws message ingestion
- * - receipt updates
- *
- * ============================
- * Implementation guidance
- * WebSocket service binds directly to:
- * - applyWsMessage
- * - updateReceipt
- * - setPresence
- * - setTyping
- * - incrementUnread / resetUnread
- *
- * ============================
- * Scalability insight
- * Presence can later be normalized into a Map for O(1) lookups
- * if user counts grow significantly.
- */

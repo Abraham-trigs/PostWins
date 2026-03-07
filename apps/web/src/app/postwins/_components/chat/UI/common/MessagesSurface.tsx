@@ -26,11 +26,10 @@ events remain visually distinct.
 
 QuestionnaireBubble remains a temporary UI injector controlled by composerMode.
 =============================================================================*/
-
 "use client";
 
-import React, { useMemo } from "react";
-import { Activity } from "lucide-react";
+import React, { useMemo, useCallback, useRef, useState } from "react";
+import { Activity, ArrowDown } from "lucide-react";
 import { usePostWinStore } from "../../store/usePostWinStore";
 import type { ThreadMessage } from "../../store/types";
 import type { CaseTimelineEvent } from "../../store/slices/caseTimeline.slice";
@@ -39,6 +38,13 @@ import { ChatBubble } from "./ChatBubble";
 import { TimelineBubble } from "@ui/chat/UI/common/TimelineBubble";
 import { QuestionnaireBubble } from "../../questionaire/QuestionnaireBubble";
 import { CaseBootstrapBubble } from "./CaseBootstrapBubble";
+import { ViewToggle } from "./ViewToggle";
+
+// 🚀 NAVIGATION & HOOKS
+import { handleNavigation } from "@/utils/navigation";
+import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
+import { usePrependScrollRestore } from "../../hooks/usePrependScrollRestore";
+import { useSmartAutoScroll } from "../../hooks/useSmartAutoScroll";
 
 /* =========================================================
 Feed Types
@@ -47,7 +53,8 @@ Feed Types
 type UnifiedFeedItem =
   | { kind: "chat"; timestamp: string; data: ThreadMessage }
   | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent }
-  | { kind: "questionnaire"; timestamp: string };
+  | { kind: "questionnaire"; timestamp: string }
+  | { kind: "date_divider"; timestamp: string; dateLabel: string }; // 📅 New Type
 
 /* =========================================================
 Component
@@ -57,104 +64,199 @@ export function MessagesSurface() {
   const getUnifiedFeed = usePostWinStore((s) => s.getUnifiedFeed);
   const currentUserId = usePostWinStore((s) => s.currentUserId);
   const composerMode = usePostWinStore((s) => s.composerMode);
+  const caseId = usePostWinStore((s) => s.activeCaseId);
+  const setActiveView = usePostWinStore((s) => s.setActiveView);
 
-  const feed: UnifiedFeedItem[] = useMemo(() => {
-    const base = getUnifiedFeed() as UnifiedFeedItem[];
+  const fetchMoreMessages = usePostWinStore((s) => s.fetchMoreMessages);
+  const hasMore = usePostWinStore((s) => s.hasMore);
+  const isFetchingMore = usePostWinStore((s) => s.isFetchingMore);
 
-    // Intake mode appends questionnaire UI to feed
-    if (composerMode === "record") {
-      return [
-        ...base,
-        {
-          kind: "questionnaire",
-          timestamp: new Date().toISOString(),
-        },
-      ];
+  /* ================= 1. Scroll & Pagination Intelligence ================= */
+
+  const { containerRef, captureHeight, restoreScroll } =
+    usePrependScrollRestore() as {
+      containerRef: React.RefObject<HTMLDivElement | null>;
+      captureHeight: () => void;
+      restoreScroll: () => void;
+    };
+
+  const [showScrollAnchor, setShowScrollAnchor] = useState(false);
+
+  /* ================= 2. Feed Processing (Unified + Dates) ================= */
+
+  const feedWithDates = useMemo(() => {
+    const raw = getUnifiedFeed();
+    const isDraft = caseId?.startsWith("draft_");
+
+    const processed: UnifiedFeedItem[] = [];
+    let lastDateLabel = "";
+
+    raw.forEach((item) => {
+      const date = new Date(item.timestamp);
+      const dateLabel = date.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      });
+
+      // Inject Date Divider if day changed
+      if (dateLabel !== lastDateLabel) {
+        processed.push({
+          kind: "date_divider",
+          timestamp: item.timestamp,
+          dateLabel: dateLabel,
+        });
+        lastDateLabel = dateLabel;
+      }
+      processed.push(item as UnifiedFeedItem);
+    });
+
+    if (composerMode === "record" && isDraft) {
+      processed.push({
+        kind: "questionnaire",
+        timestamp: new Date().toISOString(),
+      });
     }
 
-    return base;
-  }, [getUnifiedFeed, composerMode]);
+    return processed;
+  }, [getUnifiedFeed, composerMode, caseId]);
 
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  useSmartAutoScroll({
+    containerRef,
+    dependency: feedWithDates.length,
+    threshold: 120,
+  });
 
-  React.useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [feed.length]);
+  const { sentinelRef } = useInfiniteScroll({
+    enabled: hasMore && !isFetchingMore && !caseId?.startsWith("draft_"),
+    onLoadMore: async () => {
+      if (!caseId) return;
+      captureHeight();
+      await fetchMoreMessages(caseId);
+      restoreScroll();
+    },
+    root: containerRef.current,
+  });
+
+  /* ================= Smart Navigation Switcher ================= */
+  const onJumpToMessage = useCallback(
+    (targetId: string) => {
+      const element = document.getElementById(targetId);
+      if (!element) {
+        setActiveView("all");
+        setTimeout(() => {
+          handleNavigation({
+            target: "MESSAGE",
+            id: targetId,
+            params: { highlight: true, focus: true, mode: "peek" },
+          });
+        }, 60);
+        return;
+      }
+      handleNavigation({
+        target: "MESSAGE",
+        id: targetId,
+        params: { highlight: true, focus: true, mode: "peek" },
+      });
+    },
+    [setActiveView],
+  );
+
+  const isDraftMode = caseId?.startsWith("draft_");
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+    setShowScrollAnchor(!isNearBottom);
+  };
 
   return (
-    <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/50 bg-paper overflow-hidden flex flex-col">
+    <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/50 bg-paper overflow-hidden flex flex-col relative group">
       <div
-        ref={scrollRef}
+        ref={containerRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto scrollbar-none p-4"
       >
-        <div className="mx-auto w-full max-w-3xl space-y-6">
-          {feed.length === 0 ? (
-            <EmptyState />
-          ) : (
-            feed.map((item, i) => {
-              /* =========================================================
-                 Chat messages
-              ========================================================= */
+        <div className="mx-auto w-full max-w-3xl">
+          {!isDraftMode && <ViewToggle />}
 
-              if (item.kind === "chat") {
-                const meta = item.data.metadata as Record<string, any> | null;
+          <div className="relative space-y-8 pb-10">
+            <div ref={sentinelRef} className="h-1 w-full" />
 
-                // Intercept bootstrap system message
-                if (
-                  item.data.type === "SYSTEM_EVENT" &&
-                  meta?.systemEvent === "CASE_BOOTSTRAP"
-                ) {
-                  return (
-                    <CaseBootstrapBubble
-                      key={`bootstrap-${item.data.id}`}
-                      message={item.data}
-                    />
-                  );
-                }
+            {!isDraftMode && feedWithDates.length > 0 && (
+              <div className="absolute left-1/2 top-16 bottom-0 w-px bg-gradient-to-b from-line via-line/40 to-transparent -translate-x-1/2 hidden md:block" />
+            )}
 
-                return (
-                  <ChatBubble
-                    key={`chat-${item.data.id}-${i}`}
-                    message={item.data}
-                    isOwn={item.data.authorId === currentUserId}
-                  />
-                );
-              }
+            {feedWithDates.length === 0 ? (
+              <EmptyState />
+            ) : (
+              feedWithDates.map((item, i) => (
+                <div key={i} className="relative z-10">
+                  {/* 📅 Date Divider Rendering */}
+                  {item.kind === "date_divider" && (
+                    <div className="sticky top-0 z-20 py-4 flex justify-center">
+                      <span className="px-4 py-1 bg-surface-strong/80 backdrop-blur-sm border border-line/40 rounded-full text-[10px] font-bold uppercase tracking-widest text-ink/60 shadow-sm">
+                        {item.dateLabel}
+                      </span>
+                    </div>
+                  )}
 
-              /* =========================================================
-                 Timeline events
-              ========================================================= */
+                  {item.kind === "chat" &&
+                    (() => {
+                      const meta = item.data.metadata as any;
+                      if (
+                        item.data.type === "SYSTEM_EVENT" &&
+                        meta?.systemEvent === "CASE_BOOTSTRAP"
+                      ) {
+                        return <CaseBootstrapBubble message={item.data} />;
+                      }
+                      return (
+                        <ChatBubble
+                          message={item.data}
+                          isOwn={item.data.authorId === currentUserId}
+                        />
+                      );
+                    })()}
 
-              if (item.kind === "timeline") {
-                return (
-                  <TimelineBubble key={`timeline-${i}`} event={item.data} />
-                );
-              }
+                  {item.kind === "timeline" && (
+                    <div className="flex justify-center my-4">
+                      <TimelineBubble event={item.data} />
+                    </div>
+                  )}
 
-              /* =========================================================
-                 Intake questionnaire
-              ========================================================= */
-
-              if (item.kind === "questionnaire") {
-                return <QuestionnaireBubble key={`questionnaire-${i}`} />;
-              }
-
-              return null;
-            })
-          )}
+                  {item.kind === "questionnaire" && (
+                    <div className="flex justify-center">
+                      <QuestionnaireBubble />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
+
+      {showScrollAnchor && !isDraftMode && (
+        <button
+          onClick={() => {
+            if (containerRef.current) {
+              containerRef.current.scrollTo({
+                top: containerRef.current.scrollHeight,
+                behavior: "smooth",
+              });
+            }
+          }}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-ink text-paper rounded-full text-[10px] font-bold uppercase tracking-widest shadow-2xl animate-in fade-in slide-in-from-bottom-4 z-50 border border-line/20"
+        >
+          <ArrowDown size={12} className="animate-bounce" />
+          Recent Activity
+        </button>
+      )}
 
       <div className="h-3 border-t border-line/50 bg-surface-strong" />
     </div>
   );
 }
-
-/* =========================================================
-Empty State
-========================================================= */
 
 function EmptyState() {
   return (
