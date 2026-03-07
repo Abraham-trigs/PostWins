@@ -17,14 +17,6 @@ import type { CaseDetailsResponse } from "@/lib/api/contracts/domain/cases.api";
 import { ExplainCasePanel } from "../chat/explain/ExplainCasePanel";
 
 ////////////////////////////////////////////////////////////
-// Assumptions
-////////////////////////////////////////////////////////////
-// - Backend implements GET /api/cases/:id
-// - getCaseDetails is typed and returns CaseDetailsResponse
-// - Parent passes valid caseId
-// - Tailwind tokens already exist
-
-////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////
 
@@ -49,12 +41,21 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
   const tabsId = useId();
   const panelId = `${tabsId}-panel-${tab}`;
 
+  const isDraft = caseId.startsWith("draft_");
+
   ////////////////////////////////////////////////////////////
-  // Fetch logic (abort-safe)
+  // Fetch logic (abort-safe + Draft Gated)
   ////////////////////////////////////////////////////////////
 
   useEffect(() => {
-    if (!caseId) return;
+    // GATE: If no ID or it's a UI-only draft, reset state and exit.
+    // This stops the 400 Bad Request for non-persisted UUIDs.
+    if (!caseId || caseId.startsWith("draft_")) {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     controllerRef.current?.abort();
     const controller = new AbortController();
@@ -96,11 +97,25 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
       <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/50 bg-paper flex flex-col overflow-hidden">
         {/* HEADER */}
         <div className="flex-shrink-0 border-b border-line/50 bg-paper p-4">
-          {loading && <div className="text-sm text-ink/60">Loading…</div>}
+          {loading && !isDraft && (
+            <div className="text-sm text-ink/60">Loading…</div>
+          )}
 
           {error && <div className="text-sm text-red-500">{error}</div>}
 
-          {!loading && !error && data && (
+          {isDraft && (
+            <div className="flex items-center gap-4 animate-in fade-in duration-500">
+              <div className="h-12 w-12 rounded-full bg-surface-muted border border-line/20 animate-pulse" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 bg-surface-muted rounded animate-pulse" />
+                <div className="text-xs text-ink/40 italic">
+                  Initializing project...
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && data && !isDraft && (
             <div className="flex items-center gap-4">
               <Avatar initials={data.referenceCode.slice(0, 2)} />
 
@@ -125,33 +140,35 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
           )}
         </div>
 
-        {/* TABS */}
-        <div className="px-4 pt-3">
-          <div
-            role="tablist"
-            aria-label="Details sections"
-            className="flex gap-2 border-b border-line/50 pb-2"
-          >
-            {(["overview", "explain"] as TabKey[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="tab"
-                aria-selected={tab === t}
-                aria-controls={`${tabsId}-panel-${t}`}
-                id={`${tabsId}-tab-${t}`}
-                onClick={() => setTab(t)}
-                className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                  tab === t
-                    ? "bg-surface border border-line/50"
-                    : "text-ink/60 hover:text-ink"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+        {/* TABS (Hidden for drafts) */}
+        {!isDraft && (
+          <div className="px-4 pt-3">
+            <div
+              role="tablist"
+              aria-label="Details sections"
+              className="flex gap-2 border-b border-line/50 pb-2"
+            >
+              {(["overview", "explain"] as TabKey[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  aria-controls={`${tabsId}-panel-${t}`}
+                  id={`${tabsId}-tab-${t}`}
+                  onClick={() => setTab(t)}
+                  className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                    tab === t
+                      ? "bg-surface border border-line/50"
+                      : "text-ink/60 hover:text-ink"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* BODY */}
         <div
@@ -160,7 +177,19 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
           id={panelId}
           aria-labelledby={`${tabsId}-tab-${tab}`}
         >
-          {!loading && !error && data && tab === "overview" && (
+          {isDraft && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-3">
+              <div className="text-sm font-medium text-ink/70 uppercase tracking-widest text-[10px]">
+                Project Draft
+              </div>
+              <p className="text-sm text-ink/50 max-w-[220px] leading-relaxed">
+                Complete the questionnaire to generate sovereign ledger insights
+                and case mapping.
+              </p>
+            </div>
+          )}
+
+          {!loading && !error && data && !isDraft && tab === "overview" && (
             <>
               <Section title="Summary">
                 <p className="text-sm text-ink/80">
@@ -212,16 +241,14 @@ export function DetailsPanelSelected({ caseId, onOpenFullScreen }: Props) {
             </>
           )}
 
-          {tab === "explain" && <ExplainCasePanel caseId={caseId} />}
+          {!isDraft && tab === "explain" && (
+            <ExplainCasePanel caseId={caseId} />
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-////////////////////////////////////////////////////////////
-// UI Helpers
-////////////////////////////////////////////////////////////
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -245,18 +272,21 @@ function Avatar({ initials }: { initials: string }) {
 ////////////////////////////////////////////////////////////
 // Design reasoning
 ////////////////////////////////////////////////////////////
-// - Converts static skeleton into authoritative projection.
-// - Strictly typed via CaseDetailsResponse.
-// - Abort-safe fetching prevents state leaks.
-// - Conditional rendering ensures clean UX transitions.
-// - No client-side business logic inference.
+// - Gated execution: Prevents backend 400 errors by identifying
+//   'draft_' identifiers before triggering fetchers.
+// - Authoritative Projection: Strictly follows CaseDetailsResponse
+//   mapping to ensure UI matches the Sovereign Ledger state.
+// - Abort-safe: Prevents state leaks and race conditions on
+//   rapid case switching.
+// - Transition UX: Provides a placeholder "Draft" state while
+//   the project is being born in the intake questionnaire.
 
 ////////////////////////////////////////////////////////////
 // Structure
 ////////////////////////////////////////////////////////////
-// - Fetch + state
-// - Header
-// - Tabs
+// - Fetch + Gating logic
+// - Draft-aware Header (Pulse loading states)
+// - Tabs (Gated for persisted cases only)
 // - Overview projection
 // - Explain panel passthrough
 
@@ -266,12 +296,15 @@ function Avatar({ initials }: { initials: string }) {
 // Parent usage:
 // <DetailsPanelSelected caseId={selectedCaseId} />
 //
-// Ensure caseId updates trigger re-fetch.
+// NOTE: Component handles local UI 'draft_uuid' vs backend
+// 'uuid' automatically. Re-fetch is triggered only when
+// caseId transitions to a valid persisted UUID.
 
 ////////////////////////////////////////////////////////////
 // Scalability insight
 ////////////////////////////////////////////////////////////
-// Future heavy sections (timeline, ledger, evidence) should be
-// split into lazy sub-queries via ?include= param to prevent
-// overfetching in large-tenant scenarios.
+// - Lazy Load: Future heavy modules (Audit Trail, Evidence)
+//   should use 'isDraft' to delay initialization.
+// - Multi-query: Transition to ?include= parameters for
+//   large-tenant scenarios to avoid payload bloat.
 ////////////////////////////////////////////////////////////

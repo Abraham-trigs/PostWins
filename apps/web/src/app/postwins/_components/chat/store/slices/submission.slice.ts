@@ -11,57 +11,15 @@ import {
 
 /**
  * =========================================================
- * Assumptions
+ * Purpose: Unified Submission Slice
+ * Handles the transition from local UI Drafts to real
+ * Ledger-backed Project IDs (Bootstrap) and subsequent
+ * delivery records.
  * =========================================================
- * - Backend POST /api/intake/bootstrap returns:
- *   { ok: true, projectId: string, referenceCode: string }
- *
- * - Backend POST /api/intake/delivery returns:
- *   { ok: true, type: "EXECUTION_PROGRESS_RECORDED", projectId, deliveryId }
- *
- * - Other slices expose:
- *   appendEvent()
- *   setEventStatus()
- *   attachIds()
- *   appendText()
- *   clearComposer()
- *   setComposerMode()
- *
- * - Draft + delivery state owned by their respective slices.
  */
 
 /* =========================================================
-   Design reasoning
-   ---------------------------------------------------------
-   This slice orchestrates async flows:
-   - Bootstrap submission
-   - Delivery submission
-
-   It does NOT own draft, delivery, or timeline state.
-   It reads from them and coordinates cross-slice calls.
-
-   All side-effects:
-   - Event creation
-   - Event status updates
-   - Composer transitions
-   - Reset behavior
-
-   happen through other slice APIs using get().
-
-   This keeps submission logic centralized and safe.
-========================================================= */
-
-/* =========================================================
-   Structure
-   ---------------------------------------------------------
-   Exports:
-   - createSubmissionSlice()
-
-   Owns:
-   - submitting
-   - error
-   - submitBootstrap()
-   - submitDelivery()
+   Types
 ========================================================= */
 
 type BootstrapResponse = {
@@ -77,12 +35,12 @@ type DeliveryResponse = {
   deliveryId: string;
 };
 
-type SubmissionSlice = {
+export type SubmissionSlice = {
   submitting: boolean;
   error?: string;
 
   submitBootstrap: (opts: {
-    submit: (draft: PostWinDraft) => Promise<BootstrapResponse>;
+    submit: () => Promise<BootstrapResponse>;
   }) => Promise<void>;
 
   submitDelivery: (opts: {
@@ -100,6 +58,10 @@ type SubmissionSlice = {
   }) => Promise<void>;
 };
 
+/* =========================================================
+   Slice Implementation
+========================================================= */
+
 export const createSubmissionSlice: StateCreator<
   SubmissionSlice & {
     deliveryTxId: string | null;
@@ -113,14 +75,15 @@ export const createSubmissionSlice: StateCreator<
   submitting: false,
   error: undefined,
 
-  /* -----------------------------------------------------
-     Bootstrap Submission
-  ----------------------------------------------------- */
+  /* ======================================================
+     Bootstrap Submission (Draft -> Live UUID)
+  ====================================================== */
 
   submitBootstrap: async ({ submit }) => {
     const state: any = get();
     const { draft } = state;
 
+    // 1. Validation
     if (!draft.narrative || draft.narrative.trim().length < 10) {
       set(
         { error: "Please add a short description (at least 10 characters)." },
@@ -132,26 +95,28 @@ export const createSubmissionSlice: StateCreator<
 
     set({ submitting: true, error: undefined }, false, "bootstrap:start");
 
-    const eventId = state.appendEvent({
-      title: "Creating PostWin",
-      meta: "Creating project + seeding verification",
-      status: "pending",
+    /**
+     * Timeline hint event for immediate UI feedback
+     */
+    state.appendTimelineEvent({
+      type: "delivery",
+      occurredAt: new Date().toISOString(),
+      deliveryId: "bootstrap",
+      summary: "Creating PostWin project",
     });
 
     try {
-      const res = await submit(draft);
+      // 2. Perform Backend Bootstrap
+      const res = await submit();
 
-      state.setEventStatus(eventId, "logged");
-
-      /**
-       * Backend only returns projectId + referenceCode.
-       * postWinId no longer exists.
-       */
+      // 3. ATOMIC ID HANDOFF: Replace draft_ prefix with real UUID
+      // This update triggers DesktopShell's gated useEffects
       state.attachIds({
         projectId: res.projectId,
         postWinId: null,
       });
 
+      // 4. Reset Draft Narrative
       state.patchDraft({
         narrative: "",
         evidence: [],
@@ -160,17 +125,17 @@ export const createSubmissionSlice: StateCreator<
 
       set({ submitting: false }, false, "bootstrap:success");
 
+      // 5. System notification
       state.appendText(
         "system",
-        "Created. Next: verification will begin.",
+        `PostWin created. Ref: ${res.referenceCode}`,
         "verify",
       );
 
+      // 6. UI Cleanup
       state.clearComposer();
       state.setComposerMode("verify");
     } catch (e) {
-      state.setEventStatus(eventId, "failed");
-
       set(
         {
           submitting: false,
@@ -182,9 +147,9 @@ export const createSubmissionSlice: StateCreator<
     }
   },
 
-  /* -----------------------------------------------------
-     Delivery Submission
-  ----------------------------------------------------- */
+  /* ======================================================
+     Delivery Submission (Post-Bootstrap)
+  ====================================================== */
 
   submitDelivery: async ({ submit }) => {
     const state: any = get();
@@ -225,17 +190,17 @@ export const createSubmissionSlice: StateCreator<
 
     set({ submitting: true, error: undefined }, false, "delivery:start");
 
-    const deliveryId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? `delivery_${crypto.randomUUID()}`
-        : `delivery_${Date.now()}`;
-
+    const deliveryId = `delivery_${crypto.randomUUID()}`;
     const occurredAt = nowIso();
 
-    const eventId = state.appendEvent({
-      title: "Recording delivery",
-      meta: `Delivery ${deliveryId}`,
-      status: "pending",
+    /**
+     * Timeline hint
+     */
+    state.appendTimelineEvent({
+      type: "delivery",
+      occurredAt,
+      deliveryId,
+      summary: "Recording delivery",
     });
 
     try {
@@ -251,7 +216,6 @@ export const createSubmissionSlice: StateCreator<
         { transactionId: txId },
       );
 
-      state.setEventStatus(eventId, "logged");
       set({ submitting: false }, false, "delivery:success");
 
       state.appendText(
@@ -260,6 +224,7 @@ export const createSubmissionSlice: StateCreator<
         "verify",
       );
 
+      // Reset delivery inputs for next entry
       set(
         () => ({
           deliveryTxId: null,
@@ -273,8 +238,6 @@ export const createSubmissionSlice: StateCreator<
         "delivery:resetForNext",
       );
     } catch (e) {
-      state.setEventStatus(eventId, "failed");
-
       set(
         {
           submitting: false,
@@ -287,31 +250,33 @@ export const createSubmissionSlice: StateCreator<
   },
 });
 
-/**
- * =========================================================
- * Implementation guidance
- * ---------------------------------------------------------
- * - Relies on:
- *     appendEvent
- *     setEventStatus
- *     attachIds
- *     appendText
- *     clearComposer
- *     setComposerMode
- * - These must exist in composed slices.
- * - No slice imports others directly.
- */
+/* =========================================================
+Implementation guidance
+---------------------------------------------------------
+This slice orchestrates async submission flows.
 
-/**
- * =========================================================
- * Scalability insight
- * ---------------------------------------------------------
- * If later you introduce:
- * - Offline queue replay
- * - Optimistic delivery logging
- * - Retry strategies
- * - Idempotent command replay
- *
- * This orchestration layer evolves without touching
- * draft, delivery, or timeline slices.
- */
+It does not own:
+- draft
+- delivery
+- timeline
+- chat
+
+Instead it calls other slices through get().
+
+Timeline slice remains projection-only and should
+never track optimistic states like pending/failed.
+========================================================= */
+
+/* =========================================================
+Scalability insight
+---------------------------------------------------------
+If future requirements introduce:
+
+• offline command queue
+• retry logic
+• background sync
+• command idempotency
+
+this orchestration slice becomes the command layer
+without polluting the timeline or chat slices.
+========================================================= */

@@ -80,27 +80,27 @@ export const createDraftSlice: StateCreator<
    * Prevents duplicate attachments using deterministic ID.
    */
   addEvidence: (kind, files) => {
-    const prev = get().draft.evidence ?? [];
-    const seen = new Set(prev.map((e) => e.id));
-
-    const next: EvidenceFile[] = [];
-
-    for (const f of files) {
-      const id = evidenceId(kind, f);
-      if (!seen.has(id)) {
-        next.push({ id, kind, file: f });
-      }
-    }
-
-    const merged = [...prev, ...next];
-
     set(
-      {
-        draft: {
-          ...get().draft,
-          evidence: merged,
-          hasEvidence: merged.length > 0,
-        },
+      (state) => {
+        const prev = state.draft.evidence ?? [];
+        const seen = new Set(prev.map((e) => e.id));
+        const next: EvidenceFile[] = [];
+
+        for (const f of files) {
+          const id = evidenceId(kind, f);
+          if (!seen.has(id)) {
+            next.push({ id, kind, file: f });
+          }
+        }
+
+        const merged = [...prev, ...next];
+        return {
+          draft: {
+            ...state.draft,
+            evidence: merged,
+            hasEvidence: merged.length > 0,
+          },
+        };
       },
       false,
       "addEvidence",
@@ -146,3 +146,5 @@ export const createDraftSlice: StateCreator<
    You can evolve evidence structure here without touching
    questionnaire or delivery logic.
 ========================================================= */
+
+// addEvidence

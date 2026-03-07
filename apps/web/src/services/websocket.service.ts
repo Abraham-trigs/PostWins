@@ -3,9 +3,45 @@
 // explicit typing + seen + read tracking, ACK reconciliation, receipt propagation,
 // unread delta/reset handling, and deterministic reconnect behavior.
 
+/* =============================================================================
+Design reasoning
+------------------------------------------------------------------------------
+The backend strictly expects UUID caseIds for both REST and WebSocket routes.
+However the UI temporarily uses draft identifiers (e.g. draft_<uuid>) before
+bootstrap completes. Passing these directly to the backend causes Prisma UUID
+errors.
+
+This service now normalizes incoming case identifiers by stripping the
+"draft_" prefix before building the WebSocket URL.
+
+This guarantees:
+• backend always receives a UUID
+• websocket connections never fail due to prefixed draft ids
+• store logic can still use draft ids internally if needed
+=============================================================================*/
+
+/* =============================================================================
+Structure
+------------------------------------------------------------------------------
+WebSocketService
+  • connect()
+  • disconnect()
+  • sendTypingStart()
+  • sendTypingStop()
+  • sendSeen()
+  • sendReadUpTo()
+  • internal batching helpers
+=============================================================================*/
+
+"use client";
+
 import { usePostWinStore } from "../app/postwins/_components/chat/store/usePostWinStore";
 import type { BackendMessage } from "@/lib/api/contracts/domain/message";
 import { mapBackendMessageToChatMessage } from "@postwin-store/mappers/message.mapper";
+
+/* =============================================================================
+Types
+=============================================================================*/
 
 type PresencePayload = {
   userId: string;
@@ -38,6 +74,28 @@ type WSMessage =
   | { type: "UNREAD_DELTA"; payload: { caseId: string; delta: number } }
   | { type: "UNREAD_RESET"; payload: { caseId: string } };
 
+/* =============================================================================
+Helpers
+=============================================================================*/
+
+/**
+ * Normalize case identifier.
+ * Removes "draft_" prefix so backend receives valid UUID.
+ */
+function normalizeCaseId(caseId: string): string {
+  if (!caseId) return caseId;
+
+  if (caseId.startsWith("draft_")) {
+    return caseId.replace("draft_", "");
+  }
+
+  return caseId;
+}
+
+/* =============================================================================
+WebSocket Service
+=============================================================================*/
+
 class WebSocketService {
   private socket: WebSocket | null = null;
   private currentCaseId: string | null = null;
@@ -50,16 +108,18 @@ class WebSocketService {
   private deliveredQueue = new Set<string>();
   private deliveredFlushTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  ///////////////////////////////////////////////////////////// usePostWinStore
+  /////////////////////////////////////////////////////////////
   // CONNECT
   /////////////////////////////////////////////////////////////
 
   connect(caseId: string) {
     if (!caseId) return;
 
-    if (this.socket && this.currentCaseId === caseId) return;
+    const normalizedCaseId = normalizeCaseId(caseId);
 
-    if (this.socket && this.currentCaseId !== caseId) {
+    if (this.socket && this.currentCaseId === normalizedCaseId) return;
+
+    if (this.socket && this.currentCaseId !== normalizedCaseId) {
       this.disconnect();
     }
 
@@ -68,19 +128,20 @@ class WebSocketService {
     const backendHost =
       process.env.NEXT_PUBLIC_BACKEND_WS_URL || "localhost:3001";
 
-    const url = `${protocol}//${backendHost}/ws/cases/${caseId}`;
+    const url = `${protocol}//${backendHost}/ws/cases/${normalizedCaseId}`;
 
     const socket = new WebSocket(url);
 
     this.socket = socket;
-    this.currentCaseId = caseId;
+    this.currentCaseId = normalizedCaseId;
 
     socket.onopen = () => {
       this.reconnectAttempts = 0;
     };
 
     socket.onmessage = (event) => {
-      if (!this.currentCaseId || this.currentCaseId !== caseId) return;
+      if (!this.currentCaseId || this.currentCaseId !== normalizedCaseId)
+        return;
 
       try {
         const data = JSON.parse(event.data) as WSMessage;
@@ -140,13 +201,14 @@ class WebSocketService {
             break;
         }
       } catch {
-        // ignore malformed frames
+        // Ignore malformed frames
       }
     };
 
     socket.onclose = () => {
       if (this.socket === socket) this.socket = null;
-      if (this.currentCaseId === caseId) this.scheduleReconnect(caseId);
+      if (this.currentCaseId === normalizedCaseId)
+        this.scheduleReconnect(normalizedCaseId);
     };
 
     socket.onerror = () => socket.close();
@@ -172,6 +234,7 @@ class WebSocketService {
 
   sendReadUpTo(messageId: string) {
     if (!this.isOpen()) return;
+
     this.socket!.send(
       JSON.stringify({
         type: "CASE_READ_UP_TO",
@@ -266,11 +329,58 @@ class WebSocketService {
       this.reconnectTimeout = null;
     }
 
+    if (this.seenFlushTimeout) {
+      clearTimeout(this.seenFlushTimeout);
+      this.seenFlushTimeout = null;
+    }
+
+    if (this.deliveredFlushTimeout) {
+      clearTimeout(this.deliveredFlushTimeout);
+      this.deliveredFlushTimeout = null;
+    }
+
     this.reconnectAttempts = 0;
 
-    this.socket?.close();
-    this.socket = null;
-  }
-}
+    if (this.socket) {
+      this.socket.onclose = null;
+      this.socket.close();
+      this.socket = null;
+    }
+
+    this.seenQueue.clear();
+    this.deliveredQueue.clear();
+  } // <--- Closes disconnect()
+} // <--- Closes WebSocketService class
 
 export const wsService = new WebSocketService();
+
+/* =============================================================================
+Implementation guidance
+------------------------------------------------------------------------------
+Use wsService.connect(caseId) after the active case changes.
+
+The service now automatically normalizes draft ids before sending them
+to the backend.
+
+Example:
+
+wsService.connect("draft_2e392c41-f43e-4d77-a82d-6ba0a1861f40")
+
+becomes:
+
+ws://localhost:3001/ws/cases/2e392c41-f43e-4d77-a82d-6ba0a1861f40
+=============================================================================*/
+
+/* =============================================================================
+Scalability insight
+------------------------------------------------------------------------------
+Centralizing ID normalization here prevents similar bugs in:
+
+• REST case endpoints
+• websocket routing
+• unread counters
+• receipt propagation
+
+Future transport layers (SSE / WebTransport) can reuse the same
+normalization logic without touching UI components.
+=============================================================================*/

@@ -45,6 +45,6 @@ export type GrantStatus = "DRAFT" | "ACTIVE" | "PAUSED" | "CLOSED";
 
 export type TrancheStatus = "PLANNED" | "RELEASED" | "REVERSED";
 
-export type MessageType = "DISCUSSION" | "FOLLOW_UP" | "VERIFICATION_REQUEST" | "COUNTER_CLAIM" | "EVIDENCE_SUBMISSION";
+export type MessageType = "DISCUSSION" | "FOLLOW_UP" | "VERIFICATION_REQUEST" | "COUNTER_CLAIM" | "EVIDENCE_SUBMISSION" | "SYSTEM_EVENT";
 
 export type EvidenceDownloadPurpose = "VIEW" | "EXPORT";

@@ -1,8 +1,7 @@
 // apps/web/src/app/layout.tsx
-// Root layout for entire application (global styles + font ownership)
-
 import "./styles/globals.css";
 import { Lexend } from "next/font/google";
+import { Toaster } from "sonner"; // 🚀 Step 1: Import Sonner
 
 const lexend = Lexend({
   subsets: ["latin"],
@@ -11,24 +10,6 @@ const lexend = Lexend({
   display: "swap",
 });
 
-/**
- * Design reasoning:
- * - Only this file may render <html> and <body>.
- * - Font variable must live at the root to avoid hydration mismatch.
- * - Deterministic structure for server/client parity.
- *
- * Structure:
- * - <html>
- *   - <body>
- *     - children
- *
- * Implementation guidance:
- * - Never render <html> or <body> in nested layouts.
- *
- * Scalability insight:
- * - Additional global providers (Theme/Auth/Query) belong here.
- */
-
 export default function RootLayout({
   children,
 }: {
@@ -36,7 +17,27 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={lexend.variable}>
-      <body className="font-sans antialiased min-h-dvh">{children}</body>
+      <body className="font-sans antialiased min-h-dvh">
+        {children}
+
+        {/* 🚀 Step 2: Global Notification Provider */}
+        <Toaster
+          position="top-center" // Matches your balanced 3-column UI
+          expand={false}
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: "var(--surface-strong, #1a1a1a)", // Fallback to dark if var missing
+              border: "1px solid var(--line, #333)",
+              color: "var(--ink, #fff)",
+              borderRadius: "var(--xotic-radius, 12px)",
+              fontFamily: "var(--font-lexend)",
+              marginTop: "1.5rem", // Clears your top breadcrumb bar
+            },
+          }}
+        />
+      </body>
     </html>
   );
 }

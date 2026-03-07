@@ -32,7 +32,7 @@ export function DesktopShell() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailsFullOpen, setDetailsFullOpen] = useState(false);
 
-  /* ================= Auth (Stabilized) ================= attachIds */
+  /* ================= Auth (Stabilized) ================= */
   const { userId, tenantId, isAuthenticated, isHydrated } = useAuthStore(
     useShallow((s) => ({
       userId: s.user?.id,
@@ -57,22 +57,28 @@ export function DesktopShell() {
     initializeList(tenantId);
   }, [initializeList, tenantId, isHydrated]);
 
-  /* ================= WebSocket Lifecycle ================= */
+  /* ================= WebSocket Lifecycle (Gated) ================= */
   useEffect(() => {
-    if (!activeId || !isHydrated || !isAuthenticated || !userId || !tenantId)
+    // GATE: Do not connect if no ID or if it's a UI-only draft
+    const isDraft = activeId?.startsWith("draft_");
+
+    if (
+      !activeId ||
+      isDraft ||
+      !isHydrated ||
+      !isAuthenticated ||
+      !userId ||
+      !tenantId
+    ) {
       return;
+    }
+
     wsService.connect(activeId);
     return () => wsService.disconnect();
   }, [activeId, isHydrated, isAuthenticated, userId, tenantId]);
 
-  /* ================= Chat + Timeline Loader ================= */
-  /**
-   * FIX: One-Way Data Flow.
-   * We treat activeId (local state) as the source of truth.
-   * We update the store but DO NOT listen to the store's ID changes here.
-   */
+  /* ================= Chat + Timeline Loader (Gated) ================= */
   useEffect(() => {
-    // If no case is active, clear store state and stop
     if (!activeId) {
       attachIds({ projectId: null, postWinId: null });
       return;
@@ -83,22 +89,20 @@ export function DesktopShell() {
     let mounted = true;
 
     const loadData = async () => {
+      const isDraft = activeId.startsWith("draft_");
+
+      // Sync store state with selection
+      attachIds({ projectId: activeId, postWinId: null });
+
+      // GATE: Skip API calls for local drafts
+      if (isDraft) {
+        setTimeline([]);
+        setTimelineLoading(false);
+        return;
+      }
+
       try {
-        // Always sync the store with the selected thread
-        attachIds({ projectId: activeId, postWinId: null });
-
-        const isDraft =
-          typeof activeId === "string" && activeId.startsWith("draft_");
-
-        // Draft threads have no backend data
-        if (isDraft) {
-          setTimeline([]);
-          setTimelineLoading(false);
-          return;
-        }
-
         setTimelineLoading(true);
-
         const [msgResult, timelineResult] = await Promise.allSettled([
           fetchMessages(activeId),
           fetchTimeline(activeId),
@@ -109,19 +113,17 @@ export function DesktopShell() {
         if (timelineResult.status === "fulfilled") {
           setTimeline(timelineResult.value.timeline);
         }
-
         setTimelineLoading(false);
       } catch (error) {
         if (mounted) setTimelineLoading(false);
         console.error("Critical load failure:", error);
       }
     };
+
     loadData();
     return () => {
       mounted = false;
     };
-
-    // REMOVED: attachIds from dependencies to prevent re-triggering on store updates
   }, [
     activeId,
     isHydrated,
@@ -130,6 +132,7 @@ export function DesktopShell() {
     fetchMessages,
     setTimeline,
     setTimelineLoading,
+    attachIds,
   ]);
 
   /* ================= ESC Handling ================= */
@@ -154,7 +157,6 @@ export function DesktopShell() {
           <DesktopChatList
             activeId={activeId}
             onSelect={(id) => {
-              // Toggle or Select
               const nextId = activeId === id ? null : id;
               setActiveId(nextId);
               if (nextId) selectList(nextId);
@@ -171,13 +173,10 @@ export function DesktopShell() {
                   variant="desktop"
                   onPrimaryAction={() => {
                     const draftId = `draft_${crypto.randomUUID()}`;
-
                     setActiveId(draftId);
-
-                    const store = usePostWinStore.getState();
-                    store.setComposerMode("record");
+                    usePostWinStore.getState().setComposerMode("record");
                   }}
-                />{" "}
+                />
               </div>
             ) : (
               <div className="h-full w-full rounded-[var(--xotic-radius)] bg-surface-strong border border-line/40 overflow-hidden">
@@ -208,5 +207,3 @@ export function DesktopShell() {
     </div>
   );
 }
-
-// loadData

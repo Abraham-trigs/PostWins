@@ -14,6 +14,7 @@ import { apiClient } from "@/lib/api/apiClient";
    - Defensive normalization prevents UI corruption.
    - No optimistic assumptions about backend shape.
    - Pagination contract strictly matches service layer.
+   - SYSTEM_EVENT added to support lifecycle projections
 ========================================================= */
 
 /* =========================================================
@@ -25,7 +26,8 @@ export type BackendMessageType =
   | "VERIFICATION_REQUEST"
   | "COUNTER_CLAIM"
   | "EVIDENCE_SUBMISSION"
-  | "FOLLOW_UP";
+  | "FOLLOW_UP"
+  | "SYSTEM_EVENT"; // NEW
 
 export type BackendNavigationContext = {
   target: "TASK" | "MESSAGE" | "EXTERNAL";
@@ -43,26 +45,41 @@ export type BackendAuthor = {
   name: string;
 };
 
+/* =========================================================
+   Message metadata (system events)
+========================================================= */
+
+export type BackendMessageMetadata = {
+  systemEvent?: "CASE_BOOTSTRAP";
+  referenceCode?: string;
+  [key: string]: unknown;
+};
+
 export type BackendMessage = {
   id: string;
   tenantId: string;
   caseId: string;
   authorId: string;
+
   type: BackendMessageType;
+
   clientMutationId: string | null;
+
   body: string | null;
   parentId: string | null;
+
   navigationContext: BackendNavigationContext | null;
+
   createdAt: string;
 
-  // Included by backend findMany(include)
+  metadata?: BackendMessageMetadata | null; // NEW
+
   author?: BackendAuthor;
 
   _count?: {
     replies: number;
   };
 
-  // Populated via WS merge, not REST
   receipts?: Record<
     string,
     {
@@ -112,6 +129,7 @@ function normalizeMessage(raw: any): BackendMessage {
     parentId: raw.parentId ?? null,
     navigationContext: raw.navigationContext ?? null,
     createdAt: raw.createdAt,
+    metadata: raw.metadata ?? null, // NEW
     author: raw.author ?? undefined,
     _count: raw._count ?? undefined,
     receipts: raw.receipts ?? undefined,
@@ -187,13 +205,17 @@ export async function fetchMessagesByCase(
    Implementation guidance
    - Use createMessage with clientMutationId for optimistic UI.
    - Use nextCursor for infinite scroll.
+   - SYSTEM_EVENT messages must be rendered separately in UI.
    - Merge MESSAGE_CREATED from WS via store.
    - Merge MESSAGE_RECEIPT separately.
 ========================================================= */
 
 /* =========================================================
    Scalability insight
-   - Defensive normalization prevents silent drift.
-   - Explicit ok-check guards interceptor edge cases.
-   - Safe under backend shape extension.
+   - Lifecycle events can be transported through SYSTEM_EVENT:
+       CASE_BOOTSTRAP
+       CASE_ROUTED
+       VERIFICATION_STARTED
+       EXECUTION_STARTED
+       CASE_CLOSED
 ========================================================= */

@@ -1,31 +1,54 @@
-// Purpose: Converts questionnaire answers into the narrative expected by backend bootstrap.
+// apps/web/src/modules/intake/questionnaire/buildNarrative.ts
 
-export type CaseDraftAnswers = {
-  beneficiaryName?: string;
-  issue?: string;
-  location?: string;
-  reason?: string;
-  category?: string;
-};
+import { caseQuestions } from "./caseQuestions";
+
+export type CaseDraftAnswers = Record<string, string>;
 
 export function buildNarrative(draft: CaseDraftAnswers): string {
   const parts: string[] = [];
 
-  if (draft.beneficiaryName) {
-    parts.push(`${draft.beneficiaryName} is the beneficiary.`);
+  for (const q of caseQuestions) {
+    const value = draft[q.id];
+    if (!value || !value.trim()) continue;
+
+    switch (q.field) {
+      case "beneficiaryId": {
+        let displayName = value.trim();
+
+        // Check if value is the JSON payload from a new profile creation
+        if (displayName.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(displayName);
+            displayName = parsed.displayName || "a new beneficiary";
+          } catch (e) {
+            // Fallback if parsing fails
+          }
+        }
+        parts.push(`The case concerns beneficiary ${displayName}.`);
+        break;
+      }
+
+      case "issue":
+        parts.push(`The primary issue reported is: "${value.trim()}".`);
+        break;
+
+      case "location":
+        parts.push(`Incident located at: ${value.trim()}.`);
+        break;
+
+      case "reason":
+        parts.push(`Support is required because: ${value.trim()}.`);
+        break;
+
+      case "category":
+        parts.push(`Classification: ${value.trim()}.`);
+        break;
+
+      default:
+        parts.push(`${q.label}: ${value.trim()}.`);
+    }
   }
 
-  if (draft.issue) {
-    parts.push(`Issue reported: ${draft.issue}.`);
-  }
-
-  if (draft.location) {
-    parts.push(`Location: ${draft.location}.`);
-  }
-
-  if (draft.reason) {
-    parts.push(`Reason support is requested: ${draft.reason}.`);
-  }
-
-  return parts.join(" ");
+  // Join with double spaces for better readability in the Ledger Trail
+  return parts.join("  ");
 }

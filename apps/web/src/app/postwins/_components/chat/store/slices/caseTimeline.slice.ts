@@ -1,12 +1,11 @@
+// src/chat/store/slices/caseTimeline.slice.ts
 // Purpose: Read-only Case Timeline Projection Slice
 // Mirrors backend TimelineService projection exactly.
-// No optimistic logic. No receipts. No pagination.
-// This slice represents immutable ledger projections.
 
 import type { StateCreator } from "zustand";
 
 /* =========================================================
-   Backend Timeline Projection (Mirror of API Contract)
+   Backend Timeline Projection
 ========================================================= */
 
 export type CaseTimelineEvent =
@@ -40,6 +39,30 @@ export type CaseTimelineEvent =
     };
 
 /* =========================================================
+   Helpers (Exported for use in getUnifiedFeed)
+========================================================= */
+
+export function getEventTimestamp(event: CaseTimelineEvent): string {
+  switch (event.type) {
+    case "gap":
+      return event.scheduledFor;
+    case "window":
+      return event.openedAt;
+    case "delivery":
+    case "followup":
+      return event.occurredAt;
+    default:
+      return new Date(0).toISOString();
+  }
+}
+
+export function sortEvents(events: CaseTimelineEvent[]): CaseTimelineEvent[] {
+  return [...events].sort((a, b) =>
+    getEventTimestamp(a).localeCompare(getEventTimestamp(b)),
+  );
+}
+
+/* =========================================================
    Slice State
 ========================================================= */
 
@@ -49,7 +72,7 @@ export type CaseTimelineSlice = {
 
   setTimelineLoading: (loading: boolean) => void;
   setTimeline: (events: CaseTimelineEvent[]) => void;
-  appendTimelineEvent: (event: CaseTimelineEvent) => void;
+  appendTimelineEvent: (event: CaseTimelineEvent) => string;
   clearTimeline: () => void;
 };
 
@@ -62,7 +85,7 @@ export const createCaseTimelineSlice: StateCreator<
   [["zustand/devtools", never]],
   [],
   CaseTimelineSlice
-> = (set, get) => ({
+> = (set) => ({
   events: [],
   isTimelineLoading: false,
 
@@ -70,56 +93,24 @@ export const createCaseTimelineSlice: StateCreator<
     set({ isTimelineLoading: loading }, false, "caseTimeline/setLoading"),
 
   setTimeline: (events) =>
+    set({ events: sortEvents(events) }, false, "caseTimeline/setTimeline"),
+
+  appendTimelineEvent: (event) => {
+    const id = crypto.randomUUID();
+
     set(
-      {
-        events: [...events].sort((a, b) => {
-          const ta =
-            a.type === "gap"
-              ? a.scheduledFor
-              : a.type === "window"
-                ? a.openedAt
-                : a.occurredAt;
-
-          const tb =
-            b.type === "gap"
-              ? b.scheduledFor
-              : b.type === "window"
-                ? b.openedAt
-                : b.occurredAt;
-
-          return ta.localeCompare(tb);
-        }),
-      },
-      false,
-      "caseTimeline/setTimeline",
-    ),
-
-  appendTimelineEvent: (event) =>
-    set(
-      (state) => {
-        const next = [...state.events, event].sort((a, b) => {
-          const ta =
-            a.type === "gap"
-              ? a.scheduledFor
-              : a.type === "window"
-                ? a.openedAt
-                : a.occurredAt;
-
-          const tb =
-            b.type === "gap"
-              ? b.scheduledFor
-              : b.type === "window"
-                ? b.openedAt
-                : b.occurredAt;
-
-          return ta.localeCompare(tb);
-        });
-
-        return { events: next };
-      },
+      (state) => ({
+        events: sortEvents([
+          ...state.events,
+          { ...event, id } as any, // Cast to any to handle internal UI ID
+        ]),
+      }),
       false,
       "caseTimeline/appendEvent",
-    ),
+    );
+
+    return id;
+  },
 
   clearTimeline: () =>
     set(

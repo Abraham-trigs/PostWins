@@ -1,0 +1,300 @@
+# Questionnaire Engine – Scalability & Architecture Guide
+
+## Purpose
+
+The questionnaire module powers the **conversational intake flow** used to create a new case (PostWin).
+Instead of a traditional form, the system guides users through a structured dialogue that collects information step-by-step and converts it into the **narrative required by the backend bootstrap endpoint**.
+
+This module is intentionally designed to be **schema-driven, modular, and scalable**.
+
+---
+
+# Core Design Principles
+
+### 1. Schema-Driven Questions
+
+All intake questions are defined in:
+
+```
+caseQuestions.ts
+```
+
+This file acts as the **intake schema**.
+
+Example:
+
+```ts
+{
+  id: "issue",
+  field: "issue",
+  label: "What is the main issue?",
+  placeholder: "Describe the problem",
+  required: true
+}
+```
+
+Each question defines:
+
+| Field         | Purpose                             |
+| ------------- | ----------------------------------- |
+| `id`          | Unique identifier for UI state      |
+| `field`       | Structured meaning of the answer    |
+| `label`       | Question shown to the user          |
+| `placeholder` | Optional UI hint                    |
+| `type`        | Input type (`text`, `select`, etc.) |
+| `options`     | Selectable values                   |
+
+Because the UI renders from this schema, **adding new questions requires no UI refactoring**.
+
+---
+
+# Conversational Intake Flow
+
+The intake flow is driven by `QuestionnaireBubble.tsx`.
+
+High-level flow:
+
+```
+System asks question
+        ↓
+User answers
+        ↓
+Answer logged as chat message
+        ↓
+Draft narrative updated
+        ↓
+Next question asked
+        ↓
+Final submission → bootstrap endpoint
+```
+
+Example conversation:
+
+```
+System: Who is this case about?
+User: Ama Kofi
+
+System: What is the main issue?
+User: School roof collapsed
+```
+
+Once all steps are complete:
+
+```
+submitBootstrap()
+→ /api/intake/bootstrap
+→ case created
+→ verification begins
+```
+
+---
+
+# Narrative Construction
+
+Answers are converted into the narrative expected by the backend via:
+
+```
+buildNarrative.ts
+```
+
+Example generated narrative:
+
+```
+Ama Kofi is the beneficiary.
+Issue reported: School roof collapsed.
+Location: Tamale.
+Reason support is requested: Structural damage.
+```
+
+This ensures the backend receives a **single structured narrative string**, while the frontend still maintains structured fields.
+
+---
+
+# Folder Structure
+
+```
+questionnaire/
+│
+├── caseQuestions.ts
+│   Defines intake schema (questions)
+│
+├── buildNarrative.ts
+│   Converts answers → narrative string
+│
+├── QuestionnaireBubble.tsx
+│   Conversational intake UI component
+│
+└── README.md
+```
+
+---
+
+# Store Integration
+
+The questionnaire integrates with the global PostWin store.
+
+Primary interactions:
+
+```
+appendMessage()
+patchDraft()
+submitBootstrap()
+```
+
+Responsibilities:
+
+| Function          | Responsibility                    |
+| ----------------- | --------------------------------- |
+| `appendMessage`   | Adds system/user messages to chat |
+| `patchDraft`      | Updates narrative in draft slice  |
+| `submitBootstrap` | Creates case through backend      |
+
+This separation ensures:
+
+• questionnaire logic remains UI-focused
+• submission logic remains in store slices
+
+---
+
+# Scalability Strategy
+
+## 1. Add New Questions Easily
+
+To add a new question:
+
+1. Update `caseQuestions.ts`
+2. Provide a `field`
+3. Update `buildNarrative` if needed
+
+Example:
+
+```ts
+{
+  id: "urgency",
+  field: "urgency",
+  label: "How urgent is this case?",
+  type: "select",
+  options: ["Low", "Medium", "High"]
+}
+```
+
+No UI changes required.
+
+---
+
+# 2. Program-Specific Intake Schemas (Future)
+
+In the future, questionnaires can be loaded dynamically:
+
+```
+GET /api/intake/schema/:program
+```
+
+Example:
+
+```
+/api/intake/schema/education
+/api/intake/schema/disaster
+/api/intake/schema/health
+```
+
+This allows different programs to define different intake flows **without redeploying the frontend**.
+
+---
+
+# 3. Structured Data Routing
+
+Because each question maps to a `field`, answers can power advanced features:
+
+| Field             | Potential Use          |
+| ----------------- | ---------------------- |
+| `category`        | Routing rules          |
+| `location`        | Geo resolution         |
+| `beneficiaryName` | Beneficiary registry   |
+| `issue`           | AI classification      |
+| `reason`          | Funding prioritization |
+
+The narrative remains human-readable, while the structured data supports automation.
+
+---
+
+# 4. Governance Timeline Integration
+
+Each answer becomes part of the **conversation record**, meaning the intake process is auditable.
+
+Benefits:
+
+• full intake transparency
+• governance record
+• structured case history
+
+This aligns with the **ledger-based event model** used across the platform.
+
+---
+
+# Future Expansion Options
+
+### Dynamic Questionnaire Engine
+
+Allow external programs to define questionnaires through configuration rather than code.
+
+---
+
+### AI-Assisted Intake
+
+AI can analyze responses during intake to:
+
+• detect duplicates
+• classify cases
+• recommend routing
+
+---
+
+### Validation Rules
+
+Questions can include validation constraints:
+
+```
+minLength
+pattern
+required
+conditional logic
+```
+
+---
+
+### Conditional Questions
+
+Future schema could support branching logic:
+
+```
+if category = Health
+→ ask medical support questions
+```
+
+---
+
+# Engineering Guidelines
+
+When extending the questionnaire engine:
+
+1. **Never hardcode questions in components**
+2. Always extend the schema (`caseQuestions`)
+3. Keep narrative logic centralized in `buildNarrative`
+4. Maintain separation between UI and submission logic
+
+This ensures the system remains maintainable as intake flows evolve.
+
+---
+
+# Summary
+
+The questionnaire system provides:
+
+• conversational case intake
+• schema-driven question management
+• structured data + narrative generation
+• seamless integration with the chat feed
+• scalable foundation for future program-specific intake flows
+
+It is intentionally lightweight today but designed to grow into a **fully programmable intake protocol** for case governance systems.

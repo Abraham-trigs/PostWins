@@ -32,7 +32,6 @@ async function ensureRefreshed(): Promise<boolean> {
       refreshPromise = null;
     });
   }
-
   return refreshPromise;
 }
 
@@ -60,13 +59,11 @@ export async function fetcher(url: string, options: FetchOptions = {}) {
 
     if (res.status === 401) {
       const refreshed = await ensureRefreshed();
-
       if (!refreshed) {
         const error: any = new Error("Unauthorized");
         error.status = 401;
         throw error;
       }
-
       res = await execute();
     }
 
@@ -87,13 +84,11 @@ export async function fetcher(url: string, options: FetchOptions = {}) {
 
     if (res.status === 401) {
       const refreshed = await ensureRefreshed();
-
       if (!refreshed) {
         const error: any = new Error("Unauthorized");
         error.status = 401;
         throw error;
       }
-
       res = await execute();
     }
 
@@ -110,12 +105,22 @@ export async function fetcher(url: string, options: FetchOptions = {}) {
      OFFLINE WRITE → enqueue
      ============================================================ */
 
-  const body = requestInit.body ? JSON.parse(requestInit.body as string) : null;
+  // SAFE BODY PARSING: Handles JSON strings, objects, or FormData
+  let body = null;
+  try {
+    body =
+      typeof requestInit.body === "string"
+        ? JSON.parse(requestInit.body)
+        : requestInit.body;
+  } catch {
+    body = requestInit.body;
+  }
 
+  // Generate deterministic fingerprint for idempotency
   const fingerprint = await sha256(
     stableStringify({
       url,
-      method: requestInit.method,
+      method: requestInit.method || "GET",
       body,
     }),
   );
@@ -123,7 +128,7 @@ export async function fetcher(url: string, options: FetchOptions = {}) {
   enqueue({
     id: fingerprint,
     url,
-    method: requestInit.method as any,
+    method: (requestInit.method || "GET") as any,
     headers: requestInit.headers as Record<string, string>,
     body,
     createdAt: Date.now(),

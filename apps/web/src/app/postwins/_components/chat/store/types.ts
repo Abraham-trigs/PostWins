@@ -25,7 +25,8 @@ export type MessageType =
   | "FOLLOW_UP"
   | "VERIFICATION_REQUEST"
   | "COUNTER_CLAIM"
-  | "EVIDENCE_SUBMISSION";
+  | "EVIDENCE_SUBMISSION"
+  | "SYSTEM_EVENT";
 
 export type NavigationContext = {
   target: "TASK" | "MESSAGE" | "EXTERNAL";
@@ -242,3 +243,5 @@ export type ChatMessage =
    or message state (edited, deleted, pinned), extend this
    lifecycle section — never the transport contract.
 ========================================================= */
+
+// ThreadMessage

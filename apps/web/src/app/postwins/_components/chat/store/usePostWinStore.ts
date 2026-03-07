@@ -13,6 +13,7 @@ import {
   createCaseTimelineSlice,
   type CaseTimelineSlice,
   type CaseTimelineEvent,
+  getEventTimestamp, // Added this import
 } from "./slices/caseTimeline.slice";
 import { createLifecycleSlice } from "./slices/lifecycle.slice";
 import { createQuestionnaireSlice } from "./slices/questionnaire.slice";
@@ -173,7 +174,7 @@ export const usePostWinStore = create<PostWinState>()(
         }
       },
 
-      /* ======== Unified Feed ======== */
+      /* ===================== Unified Feed ===================== */
       getUnifiedFeed: () => {
         const { messages, events } = get();
 
@@ -183,16 +184,11 @@ export const usePostWinStore = create<PostWinState>()(
           data: m,
         }));
 
-        const timelineFeed: FeedItem[] = events.map((e) => {
-          const timestamp =
-            e.type === "gap"
-              ? e.scheduledFor
-              : e.type === "window"
-                ? e.openedAt
-                : e.occurredAt;
-
-          return { kind: "timeline", timestamp, data: e };
-        });
+        const timelineFeed: FeedItem[] = events.map((e) => ({
+          kind: "timeline",
+          timestamp: getEventTimestamp(e),
+          data: e,
+        }));
 
         return [...chatFeed, ...timelineFeed].sort((a, b) =>
           a.timestamp.localeCompare(b.timestamp),

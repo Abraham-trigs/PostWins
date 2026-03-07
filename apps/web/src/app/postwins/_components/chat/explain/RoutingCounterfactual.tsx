@@ -1,6 +1,3 @@
-// src/app/postwins/postwins/_components/chat/explain/RoutingCounterfactual.tsx
-// Purpose: Render routing counterfactual explanation safely with strict typing and defensive normalization.
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,10 +9,6 @@ type Props = {
   caseId: string;
 };
 
-/**
- * Explicit structural typing instead of raw `unknown`.
- * Counterfactual payload is informational JSON only.
- */
 export type Counterfactual = {
   chosen?: Record<string, unknown> | null;
   constraintsApplied?: Record<string, unknown> | null;
@@ -27,11 +20,26 @@ export type Counterfactual = {
 export function RoutingCounterfactual({ caseId }: Props) {
   const [data, setData] = useState<Counterfactual | null>(null);
   const [error, setError] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const isDraft = caseId.startsWith("draft_");
 
   useEffect(() => {
     let mounted = true;
 
+    // GATE: Prevent execution for local UI drafts
+    if (!caseId || isDraft) {
+      if (mounted) {
+        setData(null);
+        setError(false);
+        setLoading(false);
+      }
+      return;
+    }
+
     async function load() {
+      setLoading(true);
+      setError(false);
       try {
         const res = await explainApi.routingCounterfactual(caseId);
 
@@ -56,45 +64,70 @@ export function RoutingCounterfactual({ caseId }: Props) {
         if (mounted) setData(normalized);
       } catch {
         if (mounted) setError(true);
+      } finally {
+        if (mounted) setLoading(false);
       }
     }
 
-    if (caseId) load();
+    load();
 
     return () => {
       mounted = false;
     };
-  }, [caseId]);
+  }, [caseId, isDraft]);
 
   return (
     <SectionCard title="Routing Counterfactuals">
-      <div className="mb-2 text-[11px] text-ink/60">
+      <div className="mb-2 text-[11px] text-ink/60 italic leading-snug">
         Informational only — did not affect authority
       </div>
 
-      {error && (
-        <div className="text-xs text-ink/60">
+      {isDraft && (
+        <div className="py-6 px-4 border border-dashed border-line/30 rounded-lg text-center bg-surface-muted/20">
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-ink/30 mb-2">
+            Simulation Pending
+          </p>
+          <p className="text-xs text-ink/40 italic">
+            Counterfactual routing models are calculated once the case is
+            committed to the ledger.
+          </p>
+        </div>
+      )}
+
+      {!isDraft && error && (
+        <div className="text-xs text-red-400/70 p-2 rounded bg-red-50/5 border border-red-200/10">
           Failed to load counterfactuals
         </div>
       )}
 
-      {!error && !data && (
-        <div className="text-xs text-ink/60">No counterfactuals recorded</div>
+      {!isDraft && loading && (
+        <div className="h-24 w-full bg-paper/50 rounded animate-pulse border border-line/10" />
       )}
 
-      {!error && data && (
-        <div className="space-y-3 text-xs">
-          {data.chosen && <JsonBlock label="Chosen" value={data.chosen} />}
+      {!isDraft && !loading && !error && !data && (
+        <div className="text-xs text-ink/40 italic py-4 text-center">
+          No counterfactuals recorded
+        </div>
+      )}
+
+      {!isDraft && !loading && data && (
+        <div className="space-y-4 text-xs mt-4">
+          {data.chosen && (
+            <JsonBlock label="Chosen Route" value={data.chosen} />
+          )}
 
           {data.constraintsApplied && (
             <JsonBlock
-              label="Constraints Applied"
+              label="Applied Constraints"
               value={data.constraintsApplied}
             />
           )}
 
           {data.alternatives && (
-            <JsonBlock label="Alternatives" value={data.alternatives} />
+            <JsonBlock
+              label="Evaluation Alternatives"
+              value={data.alternatives}
+            />
           )}
         </div>
       )}
@@ -112,9 +145,11 @@ function JsonBlock({
   value: Record<string, unknown>;
 }) {
   return (
-    <div>
-      <div className="mb-1 font-semibold text-ink/70">{label}</div>
-      <pre className="max-h-64 overflow-auto rounded bg-surface-muted p-2 text-[10px]">
+    <div className="animate-in fade-in slide-in-from-top-1 duration-300">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-tight text-ink/40 pl-1">
+        {label}
+      </div>
+      <pre className="max-h-64 overflow-auto rounded-lg border border-line/40 bg-zinc-950 p-3 text-[10px] text-zinc-300 font-mono shadow-inner">
         {JSON.stringify(value, null, 2)}
       </pre>
     </div>
@@ -129,8 +164,8 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded border border-line/50 bg-surface p-4">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink/55">
+    <section className="rounded-xl border border-line/50 bg-surface p-5 shadow-sm">
+      <div className="mb-4 text-[10px] font-bold uppercase tracking-widest text-ink/40">
         {title}
       </div>
       {children}

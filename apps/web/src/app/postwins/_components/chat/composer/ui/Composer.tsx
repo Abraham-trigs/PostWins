@@ -108,7 +108,7 @@ export function Composer() {
   }
 
   /* =========================================================
-     Submit Logic (Optimistic UI + Backend Sync)
+     Submit Logic (Optimistic UI + Backend Sync + Draft Gated)
   ========================================================= */
 
   const handleSubmit = async () => {
@@ -117,7 +117,18 @@ export function Composer() {
     const trimmed = text.trim();
     const { tenantId } = useAuthStore.getState();
 
-    if (!trimmed || !caseId || !currentUserId || !tenantId) return;
+    // 🛑 GATE: Identify if the current active case is a local UI-only draft
+    const isDraft = caseId?.startsWith("draft_");
+
+    // Block submission if fields are missing OR the case hasn't been born in the DB yet
+    if (!trimmed || !caseId || isDraft || !currentUserId || !tenantId) {
+      if (isDraft) {
+        console.warn(
+          "Message blocked: Project bootstrap is still in progress.",
+        );
+      }
+      return;
+    }
 
     const tempId = crypto.randomUUID();
 
@@ -136,6 +147,7 @@ export function Composer() {
       clearComposer();
 
       // 2️⃣ Backend call (transport domain)
+      // This will now only execute for real, persisted UUIDs
       const serverMessage = await createMessage({
         caseId,
         type: mapModeToMessageType(mode),
