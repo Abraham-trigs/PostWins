@@ -1,0 +1,181 @@
+# 🤝 Contributing to PostWins
+
+Thank you for contributing to the **PostWins platform**.
+
+PostWins is designed as a **deterministic workflow system** built on
+**domain-driven architecture**. Contributions should maintain the
+**architectural integrity** of the system.
+
+------------------------------------------------------------------------
+
+# 🚀 Contribution Workflow
+
+## 1️⃣ Fork the Repository
+
+Create your own fork of the repository.
+
+    https://github.com/<org>/postwins
+
+------------------------------------------------------------------------
+
+## 2️⃣ Clone Your Fork
+
+    git clone https://github.com/<your-username>/postwins.git
+    cd postwins
+
+------------------------------------------------------------------------
+
+## 3️⃣ Create a Branch
+
+Always create a feature branch from `main`.
+
+    git checkout -b feature/your-feature-name
+
+Examples:
+
+    feature/case-routing-improvement
+    feature/evidence-upload-enhancement
+    fix/message-pagination
+
+------------------------------------------------------------------------
+
+## 4️⃣ Install Dependencies
+
+    pnpm install
+
+------------------------------------------------------------------------
+
+## 5️⃣ Run the Platform
+
+Run the full platform:
+
+    pnpm dev
+
+Run individual services:
+
+Backend
+
+    pnpm --filter backend dev
+
+Web client
+
+    pnpm --filter web dev
+
+Website
+
+    pnpm --filter website dev
+
+------------------------------------------------------------------------
+
+# 🧭 Development Guidelines
+
+## ⚙️ Backend
+
+Backend logic must follow **domain-driven architecture**.
+
+Domain modules live in:
+
+    apps/backend/src/modules
+
+Example domains:
+
+    cases
+    routing
+    verification
+    evidence
+    execution
+    disbursement
+
+Rules:
+
+-   🧠 Domain logic stays inside domain modules
+-   📦 Controllers remain thin
+-   ⚙️ Business logic belongs in services
+-   🔁 Lifecycle transitions must remain deterministic
+
+------------------------------------------------------------------------
+
+## 💻 Frontend
+
+Frontend features should follow **feature-driven UI architecture**.
+
+Example structure:
+
+    src/app/postwins
+
+Components should be:
+
+-   ♻️ reusable
+-   🧩 isolated
+-   🔁 predictable
+
+Avoid mixing application state across unrelated components.
+
+------------------------------------------------------------------------
+
+## 🔗 Shared Contracts
+
+If a change modifies API responses or shared types, update:
+
+    packages/core
+
+This prevents **frontend/backend type drift**.
+
+------------------------------------------------------------------------
+
+# 📝 Commit Messages
+
+Use clear commit messages.
+
+Examples:
+
+    feat: add verification consensus endpoint
+    fix: resolve message pagination bug
+    docs: update architecture documentation
+    refactor: simplify routing service
+
+------------------------------------------------------------------------
+
+# 🔍 Pull Requests
+
+Pull requests should include:
+
+-   📄 clear description
+-   🔗 related issue (if applicable)
+-   🖼 screenshots for UI changes
+-   🧠 explanation of architectural impact
+
+All pull requests are reviewed for:
+
+-   🏗 architecture alignment
+-   🔐 security
+-   🧩 maintainability
+-   👁 observability
+
+------------------------------------------------------------------------
+
+# 🧠 Contribution Principles
+
+All contributions must maintain:
+
+### 🔁 Deterministic Workflows
+
+System behavior must remain **predictable and explainable**.
+
+### 🧩 Clear System Boundaries
+
+Domain logic must remain inside its respective module.
+
+### 👁 Strong Observability
+
+New features should include **logging or traceability** where
+appropriate.
+
+### 📐 Architectural Consistency
+
+Contributions should follow **existing patterns** rather than
+introducing new structural paradigms.
+
+------------------------------------------------------------------------
+
+🙏 Thank you for helping improve **PostWins**.
