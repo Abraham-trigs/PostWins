@@ -261,3 +261,223 @@ All new functionality should maintain:
 -   deterministic workflows
 -   clear system boundaries
 -   strong observability
+
+
+# PostWins Architecture
+
+PostWins is a **deterministic workflow platform** designed to manage
+complex operational processes with explainable system behavior.
+
+The architecture prioritizes:
+
+-   domain-driven design
+-   deterministic lifecycle transitions
+-   policy-driven decision making
+-   auditability through ledger systems
+-   shared contracts across applications
+
+------------------------------------------------------------------------
+
+# Platform Overview
+
+The platform consists of three primary layers.
+
+Frontend Applications ↓ Backend Workflow Engine ↓ Database + Ledger
+
+------------------------------------------------------------------------
+
+# Monorepo Architecture
+
+The repository uses a monorepo structure powered by **pnpm workspaces**
+and **Turborepo**.
+
+. ├── apps │ ├── backend │ ├── web │ └── website │ ├── packages │ └──
+core
+
+------------------------------------------------------------------------
+
+# Backend Architecture
+
+Location:
+
+apps/backend
+
+The backend acts as the **workflow orchestration engine**.
+
+Responsibilities include:
+
+-   case lifecycle management
+-   verification processes
+-   routing decisions
+-   evidence validation
+-   disbursement orchestration
+-   messaging infrastructure
+-   explainable decision systems
+
+The backend is organized using **domain modules**.
+
+Example modules:
+
+modules/cases\
+modules/routing\
+modules/evidence\
+modules/verification\
+modules/execution\
+modules/disbursement
+
+Each module contains:
+
+routes\
+controllers\
+services\
+domain logic
+
+------------------------------------------------------------------------
+
+# Workflow Model
+
+Operational processes follow deterministic lifecycle transitions.
+
+Example lifecycle flow:
+
+Case Intake\
+↓\
+Verification\
+↓\
+Routing\
+↓\
+Execution\
+↓\
+Completion
+
+Transitions are recorded through system events and ledger entries to
+ensure transparency.
+
+------------------------------------------------------------------------
+
+# Policy Engine
+
+System decisions are evaluated using explicit policy logic.
+
+Policies determine:
+
+-   routing decisions
+-   verification outcomes
+-   disbursement authorization
+-   execution transitions
+
+Policies replace hidden conditional logic to make system behavior
+transparent and inspectable.
+
+------------------------------------------------------------------------
+
+# Frontend Architecture
+
+Location:
+
+apps/web
+
+The frontend is a **Next.js application** designed for operational
+workflows.
+
+Capabilities include:
+
+-   case management
+-   messaging
+-   evidence submission
+-   decision explanation
+-   workflow monitoring
+
+The frontend follows **feature-driven UI architecture**.
+
+Example structure:
+
+src/app/postwins
+
+State is managed through domain stores.
+
+Example:
+
+useCasesStore\
+usePostWinStore\
+useAuthStore
+
+------------------------------------------------------------------------
+
+# Website Architecture
+
+Location:
+
+apps/website
+
+The website communicates the PostWins platform to external stakeholders.
+
+It includes:
+
+-   product explanations
+-   architecture documentation
+-   stakeholder experiences
+-   demo request flows
+
+The website uses a component-driven structure optimized for storytelling
+and documentation.
+
+------------------------------------------------------------------------
+
+# Shared Packages
+
+Shared logic lives in:
+
+packages/core
+
+This package contains:
+
+-   shared domain contracts
+-   cross-application types
+-   reusable utilities
+
+Shared contracts ensure that frontend and backend remain synchronized.
+
+------------------------------------------------------------------------
+
+# System Design Principles
+
+### Deterministic Workflows
+
+Operational processes follow explicit lifecycle transitions.
+
+### Domain Ownership
+
+Each domain module owns its behavior and logic.
+
+### Explainable Systems
+
+System decisions should always be inspectable.
+
+### Shared Contracts
+
+Applications share types to prevent API drift.
+
+### Scalable Monorepo
+
+Applications and shared packages evolve together in a unified
+repository.
+
+------------------------------------------------------------------------
+
+# Key Files to Understand the Platform
+
+Backend workflow engine:
+
+apps/backend/src/modules/cases/transitionCaseLifecycleWithLedger.ts
+
+Policy evaluation:
+
+apps/backend/src/modules/policies/policy-evaluation.service.ts
+
+Frontend API communication:
+
+apps/web/src/lib/api/apiClient.ts
+
+These files reveal the core behavior of the PostWins platform.
+
