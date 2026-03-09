@@ -199,20 +199,17 @@ export type QuestionnaireAnswers = {
  * UI-authoritative timeline message model used by chat store.
  * This is intentionally separate from ThreadMessage (backend domain).
  */
-export type ChatMessage =
+/**
+ * ChatMessage
+ * UI-authoritative timeline message model used by chat store.
+ */
+export type ChatMessage = (
   | {
-      id: string;
       kind: "text";
-
       role: "system" | "user";
-      mode?: "record" | "followup" | "verify" | "delivery";
-
       text: string;
-      createdAt: string;
-
       // 🔹 Backend alignment
       authorId?: string;
-
       // 🔹 Real-time delivery/seen tracking
       receipts?: Record<
         string,
@@ -223,21 +220,28 @@ export type ChatMessage =
       >;
     }
   | {
-      id: string;
       kind: "form_block";
       step: QuestionnaireStep | "beneficiary" | "review";
-      createdAt: string;
     }
   | {
-      id: string;
       kind: "action_row";
       actions: {
         id: string;
         label: string;
         value: string;
       }[];
-      createdAt: string;
-    };
+    }
+) & {
+  // 🔹 Properties common to ALL message types
+  id: string;
+  createdAt: string;
+  /**
+   * Optional mode to support View Filtering (record, followup, etc.)
+   * Including "discussion" ensures alignment with ComposerMode.
+   */
+  mode?: "record" | "followup" | "verify" | "delivery" | "discussion";
+};
+
 /* =========================================================
    Implementation guidance ChatMessage
    ---------------------------------------------------------

@@ -46,7 +46,7 @@ export type ChatSlice = ChatContextSlice &
 ============================ */
 
 export const createChatSlice: StateCreator<
-  ChatSlice,
+  any,
   [["zustand/devtools", never]],
   [],
   ChatSlice

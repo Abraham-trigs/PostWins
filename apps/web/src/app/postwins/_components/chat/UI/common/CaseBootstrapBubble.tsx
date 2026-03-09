@@ -1,35 +1,44 @@
-// src/app/xotic/postwins/_components/chat/bubbles/CaseBootstrapBubble.tsx
-// Purpose: Dedicated bubble for rendering CASE_BOOTSTRAP system events in the chat timeline.
-
-/* =============================================================================
-Assumptions
-------------------------------------------------------------------------------
-• ThreadMessage type exists in ../../store/types
-• Backend inserts SYSTEM_EVENT message with metadata.systemEvent === "CASE_BOOTSTRAP"
-• MessagesSurface will route this message to this component
-=============================================================================*/
+// src/app/xotic/postwins/_components/chat/components/CaseBootstrapBubble.tsx
+// Purpose: Renders a system lifecycle bubble when a case is initialized (CASE_BOOTSTRAP event)
 
 "use client";
 
+import React from "react";
 import { FilePlus2 } from "lucide-react";
-import type { ThreadMessage } from "../../store/types";
+import type { ChatMessage } from "../../store/types";
 
-/* =============================================================================
+/* ============================================================================
+Assumptions
+----------------------------------------------------------------------------
+• UI pipeline uses ChatMessage (normalized from backend ThreadMessage)
+• Lifecycle metadata is injected during mapping:
+      metadata.systemEvent === "CASE_BOOTSTRAP"
+      metadata.referenceCode
+============================================================================ */
+
+/* ============================================================================
 Types
-=============================================================================*/
+============================================================================ */
 
-type Props = {
-  message: ThreadMessage;
-};
+export interface CaseBootstrapBubbleProps {
+  message: ChatMessage;
+}
 
-/* =============================================================================
+/* ============================================================================
 Component
-=============================================================================*/
+============================================================================ */
 
-export function CaseBootstrapBubble({ message }: Props) {
-  const metadata = message.metadata as Record<string, any> | null;
+export function CaseBootstrapBubble({ message }: CaseBootstrapBubbleProps) {
+  /**
+   * ChatMessage is a union type. Some variants may not contain metadata,
+   * so we access it defensively.
+   */
+  const metadata =
+    (message as unknown as { metadata?: Record<string, unknown> }).metadata ??
+    null;
 
-  const referenceCode = metadata?.referenceCode ?? "CASE";
+  const referenceCode =
+    (metadata as { referenceCode?: string } | null)?.referenceCode ?? "CASE";
 
   return (
     <div className="flex justify-center my-4" role="status" aria-live="polite">
@@ -37,7 +46,9 @@ export function CaseBootstrapBubble({ message }: Props) {
         <FilePlus2 className="w-4 h-4 shrink-0" />
 
         <div className="flex flex-col leading-tight">
-          <span className="font-semibold">Case {referenceCode} created</span>
+          <span className="font-semibold text-blue-900 dark:text-blue-100">
+            Case {referenceCode} created
+          </span>
 
           <span className="text-[11px] opacity-70">
             Intake initialized and ready for review
@@ -48,49 +59,58 @@ export function CaseBootstrapBubble({ message }: Props) {
   );
 }
 
-/* =============================================================================
+/* ============================================================================
 Design reasoning
-------------------------------------------------------------------------------
-A dedicated component prevents overloading ChatBubble with system-specific
-rendering logic. Case creation is a structural event in the lifecycle, not a
-conversation message, so it deserves its own renderer.
+----------------------------------------------------------------------------
+This component renders lifecycle system messages without coupling UI to the
+backend ThreadMessage domain model. By accepting ChatMessage, it stays aligned
+with the UI message pipeline:
 
-This separation keeps the UI architecture clean and allows additional system
-events to be implemented without complicating existing chat bubbles.
-=============================================================================*/
-
-/* =============================================================================
-Structure
-------------------------------------------------------------------------------
+BackendMessage
+   ↓
+mapBackendMessageToChatMessage()
+   ↓
+ChatMessage
+   ↓
+MessagesSurface
+   ↓
 CaseBootstrapBubble
-  • Receives ThreadMessage
-  • Extracts metadata.referenceCode
-  • Renders centered lifecycle event bubble
-=============================================================================*/
 
-/* =============================================================================
+The component defensively accesses metadata because ChatMessage is a union
+type that may represent different UI message variants.
+============================================================================ */
+
+/* ============================================================================
+Structure
+----------------------------------------------------------------------------
+CaseBootstrapBubble
+• Receives ChatMessage
+• Extracts lifecycle metadata safely
+• Displays system lifecycle event UI
+============================================================================ */
+
+/* ============================================================================
 Implementation guidance
-------------------------------------------------------------------------------
-MessagesSurface must detect the system event and route to this component:
+----------------------------------------------------------------------------
+MessagesSurface should route lifecycle events like:
 
-if (
-  item.data.type === "SYSTEM_EVENT" &&
-  item.data.metadata?.systemEvent === "CASE_BOOTSTRAP"
-) {
-  return <CaseBootstrapBubble message={item.data} />
+if (meta?.systemEvent === "CASE_BOOTSTRAP") {
+   return <CaseBootstrapBubble message={item.data} />
 }
 
-=============================================================================*/
+This keeps ChatBubble purely conversational.
+============================================================================ */
 
-/* =============================================================================
+/* ============================================================================
 Scalability insight
-------------------------------------------------------------------------------
-Additional lifecycle bubbles can follow the same pattern:
+----------------------------------------------------------------------------
+Future lifecycle events can reuse this pattern:
 
-CaseRoutedBubble
-VerificationStartedBubble
-ExecutionStartedBubble
-CaseClosedBubble
+CASE_ROUTED
+VERIFICATION_STARTED
+EXECUTION_STARTED
+CASE_CLOSED
 
-Each maps to a ledger event but stays visually distinct from user chat.
-=============================================================================*/
+Each event can map to a dedicated lifecycle bubble without modifying the
+core chat renderer.
+============================================================================ */

@@ -13,25 +13,13 @@ import {
   History,
 } from "lucide-react";
 
-import type { ThreadMessage } from "@postwin-store/types";
+import type { ChatMessage } from "@postwin-store/types";
 import { handleNavigation } from "@/utils/navigation";
 import { cn } from "@/utils/utils";
 
 /* =========================================================
    Design reasoning
----------------------------------------------------------
-This version extends the original ChatBubble to visually
-express the functional chat modes used in the PostWins UX.
-
-record   → discussion
-verify   → verification activity
-followup → post-decision monitoring
-delivery → evidence or execution proof
-
-The component remains a pure presentation layer:
-- no store access
-- no domain mutation
-- no backend dependency
+   Updated to use ChatMessage to support UI-side mode theming.
 ========================================================= */
 
 const MODE_THEMES = {
@@ -59,64 +47,58 @@ const MODE_THEMES = {
     styles: "text-emerald-600/60 bg-emerald-50/50 border-emerald-100",
     accent: "border-emerald-200 bg-emerald-50/20 ring-emerald-500/10",
   },
+  discussion: {
+    label: "Discussion",
+    icon: MessageCircle,
+    styles: "text-blue-600/60 bg-blue-50/50 border-blue-100",
+    accent: "border-blue-200 bg-blue-50/20 ring-blue-500/10",
+  },
 };
 
 export type ChatBubbleProps = {
-  message: ThreadMessage;
+  message: ChatMessage;
   isOwn: boolean;
 };
 
 export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
   /* ================= Defensive normalization ================= */
+  // Access properties safely from the Union/Intersection
+  const m = message as any;
 
-  const safeType =
-    typeof message.type === "string" && message.type.length > 0
-      ? message.type
-      : "DISCUSSION";
-
-  const safeBody =
-    typeof message.body === "string" && message.body.length > 0
-      ? message.body
-      : "";
+  // Use .text for ChatMessage (mapped from backend .body)
+  const safeBody = m.text || "";
 
   const safeCreatedAt =
     message.createdAt && !isNaN(new Date(message.createdAt).getTime())
       ? new Date(message.createdAt)
       : new Date();
 
-  const navigationContext = message.navigationContext ?? null;
+  const navigationContext = m.navigationContext ?? null;
 
   /* ================= Mode detection ================= */
-
+  // message.mode is now available on the base thanks to the updated types.ts
   const theme =
     MODE_THEMES[message.mode as keyof typeof MODE_THEMES] || MODE_THEMES.record;
 
   const Icon = theme.icon;
 
   /* =========================================================
-     Signals
+     Signals (UI-only treatment based on mode)
   ========================================================= */
-
-  const isSignal = [
-    "VERIFICATION_REQUEST",
-    "COUNTER_CLAIM",
-    "EVIDENCE_SUBMISSION",
-    "FOLLOW_UP",
-  ].includes(safeType);
+  const isSignal = ["verify", "followup", "delivery"].includes(
+    message.mode || "",
+  );
 
   return (
     <div
-      id={message.id} // 🔑 navigation anchor
-      tabIndex={-1} // allows focus during scroll navigation
+      id={message.id}
+      tabIndex={-1}
       className={cn(
         "group flex flex-col mb-4 transition-all focus:outline-none",
         isOwn ? "items-end" : "items-start",
       )}
     >
-      {/* =====================================================
-         MODE BADGE
-      ===================================================== */}
-
+      {/* MODE BADGE */}
       <div
         className={cn(
           "flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-widest mb-1.5 shadow-sm",
@@ -127,10 +109,7 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
         {theme.label}
       </div>
 
-      {/* =====================================================
-         MESSAGE BUBBLE
-      ===================================================== */}
-
+      {/* MESSAGE BUBBLE */}
       <div
         className={cn(
           "relative max-w-[85%] rounded-[var(--xotic-radius)] border px-4 py-3 text-sm shadow-sm transition-all duration-300",
@@ -145,10 +124,6 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
           {safeBody}
         </p>
 
-        {/* =====================================================
-           Contextual navigation actions
-        ===================================================== */}
-
         {navigationContext && (
           <button
             onClick={() => handleNavigation(navigationContext)}
@@ -158,7 +133,6 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
               {navigationContext.label ||
                 `View ${navigationContext.target ?? "Details"}`}
             </span>
-
             {navigationContext.target === "EXTERNAL" ? (
               <ExternalLink className="h-3 w-3 shrink-0" />
             ) : (
@@ -168,10 +142,7 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
         )}
       </div>
 
-      {/* =====================================================
-         TIMESTAMP
-      ===================================================== */}
-
+      {/* TIMESTAMP */}
       <span className="text-[9px] text-ink/30 mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {safeCreatedAt.toLocaleTimeString([], {
           hour: "2-digit",
@@ -181,16 +152,3 @@ export function ChatBubble({ message, isOwn }: ChatBubbleProps) {
     </div>
   );
 }
-
-/* =========================================================
-Implementation guidance
----------------------------------------------------------
-Parent component must pass `isOwn` using authorId.
-
-Navigation jumps rely on the root container id
-to locate and highlight the bubble.
-
-Future features (reactions, replies, moderation)
-can be inserted inside the bubble container
-without affecting feed logic.
-========================================================= */

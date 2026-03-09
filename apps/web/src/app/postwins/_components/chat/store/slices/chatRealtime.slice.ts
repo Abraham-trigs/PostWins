@@ -107,17 +107,19 @@ export const createChatRealtimeSlice: StateCreator<
     // 2. 🔔 UI NOTIFICATION LOGIC
     // Check if the incoming message mode matches a hidden view
     const activeView = get().activeView;
+
+    // 🚀 CLEAN: No more 'as any' needed because 'mode' is in the ChatMessage intersection base
     const mode = incoming.mode ?? "record";
 
     if (activeView !== "all" && activeView !== mode) {
       // Trigger the pulsing dot on the relevant ViewToggle button
-      get().set(
-        {
+      set(
+        (state: any) => ({
           viewActivity: {
-            ...get().viewActivity,
+            ...state.viewActivity,
             [mode]: true,
           },
-        },
+        }),
         false,
         "ui/notifyViewActivity",
       );

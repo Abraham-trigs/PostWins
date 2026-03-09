@@ -268,7 +268,9 @@ export const usePostWinStore = create<PostWinState>()(
 
         const filteredMessages = messages.filter((m) => {
           if (activeView === "all") return true;
-          return m.mode === activeView;
+          // 🚀 FIX: Fallback to "record" handles messages where mode is undefined
+          const messageMode = m.mode ?? "record";
+          return messageMode === activeView;
         });
 
         const chatFeed: FeedItem[] = filteredMessages.map((m) => ({

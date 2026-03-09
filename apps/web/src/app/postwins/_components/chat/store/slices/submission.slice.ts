@@ -9,17 +9,8 @@ import {
   normalizeDeliveryItems,
 } from "@postwin-store/helpers";
 
-/**
- * =========================================================
- * Purpose: Unified Submission Slice
- * Handles the transition from local UI Drafts to real
- * Ledger-backed Project IDs (Bootstrap) and subsequent
- * delivery records.
- * =========================================================
- */
-
 /* =========================================================
-   Types
+Types
 ========================================================= */
 
 type BootstrapResponse = {
@@ -59,7 +50,7 @@ export type SubmissionSlice = {
 };
 
 /* =========================================================
-   Slice Implementation
+Slice Implementation
 ========================================================= */
 
 export const createSubmissionSlice: StateCreator<
@@ -67,6 +58,8 @@ export const createSubmissionSlice: StateCreator<
     deliveryTxId: string | null;
     submitting: boolean;
     error?: unknown;
+    activeCaseId?: string | null;
+    ids?: { projectId: string | null; postWinId: string | null };
   },
   [["zustand/devtools", never]],
   [],
@@ -83,7 +76,8 @@ export const createSubmissionSlice: StateCreator<
     const state: any = get();
     const { draft } = state;
 
-    // 1. Validation
+    /* 1. Validation */
+
     if (!draft.narrative || draft.narrative.trim().length < 10) {
       set(
         { error: "Please add a short description (at least 10 characters)." },
@@ -95,9 +89,8 @@ export const createSubmissionSlice: StateCreator<
 
     set({ submitting: true, error: undefined }, false, "bootstrap:start");
 
-    /**
-     * Timeline hint event for immediate UI feedback
-     */
+    /* Timeline hint */
+
     state.appendTimelineEvent({
       type: "delivery",
       occurredAt: new Date().toISOString(),
@@ -106,17 +99,38 @@ export const createSubmissionSlice: StateCreator<
     });
 
     try {
-      // 2. Perform Backend Bootstrap
+      /* 2. Perform Backend Bootstrap */
+
       const res = await submit();
 
-      // 3. ATOMIC ID HANDOFF: Replace draft_ prefix with real UUID
-      // This update triggers DesktopShell's gated useEffects
+      /* ======================================================
+         3. ATOMIC ID HANDOFF (CRITICAL FIX)
+
+         Replace draft_* caseId with real UUID so the UI
+         exits draft mode immediately.
+      ====================================================== */
+
+      set(
+        {
+          activeCaseId: res.projectId,
+          ids: {
+            projectId: res.projectId,
+            postWinId: null,
+          },
+        },
+        false,
+        "submission/complete",
+      );
+
+      /* Ensure other slices that depend on IDs are updated */
+
       state.attachIds({
         projectId: res.projectId,
         postWinId: null,
       });
 
-      // 4. Reset Draft Narrative
+      /* 4. Reset Draft Narrative */
+
       state.patchDraft({
         narrative: "",
         evidence: [],
@@ -125,14 +139,16 @@ export const createSubmissionSlice: StateCreator<
 
       set({ submitting: false }, false, "bootstrap:success");
 
-      // 5. System notification
+      /* 5. System notification */
+
       state.appendText(
         "system",
         `PostWin created. Ref: ${res.referenceCode}`,
         "verify",
       );
 
-      // 6. UI Cleanup
+      /* 6. UI Cleanup */
+
       state.clearComposer();
       state.setComposerMode("verify");
     } catch (e) {
@@ -193,9 +209,6 @@ export const createSubmissionSlice: StateCreator<
     const deliveryId = `delivery_${crypto.randomUUID()}`;
     const occurredAt = nowIso();
 
-    /**
-     * Timeline hint
-     */
     state.appendTimelineEvent({
       type: "delivery",
       occurredAt,
@@ -224,7 +237,6 @@ export const createSubmissionSlice: StateCreator<
         "verify",
       );
 
-      // Reset delivery inputs for next entry
       set(
         () => ({
           deliveryTxId: null,
@@ -251,32 +263,48 @@ export const createSubmissionSlice: StateCreator<
 });
 
 /* =========================================================
+Design reasoning
+---------------------------------------------------------
+The key fix ensures the UI exits draft mode immediately
+after bootstrap by replacing `draft_*` activeCaseId with
+the server-issued UUID. Without this handoff the UI
+continues rendering the questionnaire state because
+MessagesSurface detects draft mode via the caseId prefix.
+========================================================= */
+
+/* =========================================================
+Structure
+---------------------------------------------------------
+submitBootstrap
+  → validate draft
+  → backend bootstrap
+  → atomic id handoff (activeCaseId + ids)
+  → notify chat + reset draft
+
+submitDelivery
+  → validate payload
+  → submit delivery
+  → append system message
+  → reset delivery draft
+========================================================= */
+
+/* =========================================================
 Implementation guidance
 ---------------------------------------------------------
-This slice orchestrates async submission flows.
+MessagesSurface draft detection:
 
-It does not own:
-- draft
-- delivery
-- timeline
-- chat
+caseId?.startsWith("draft_")
 
-Instead it calls other slices through get().
-
-Timeline slice remains projection-only and should
-never track optimistic states like pending/failed.
+The atomic ID handoff guarantees that once bootstrap
+succeeds, the UI transitions immediately to the live
+conversation context.
 ========================================================= */
 
 /* =========================================================
 Scalability insight
 ---------------------------------------------------------
-If future requirements introduce:
-
-• offline command queue
-• retry logic
-• background sync
-• command idempotency
-
-this orchestration slice becomes the command layer
-without polluting the timeline or chat slices.
+If command retries, offline mode, or background sync
+are introduced, this slice naturally evolves into the
+"command layer" responsible for orchestrating
+state mutations across slices.
 ========================================================= */

@@ -37,7 +37,7 @@ export function mapChatMessageToCreatePayload(
     throw new Error("Only text messages can be sent to backend");
   }
 
-  const safeMode: ComposerMode = message.mode ?? "record";
+  const safeMode = (message.mode ?? "record") as ComposerMode;
 
   return {
     caseId,

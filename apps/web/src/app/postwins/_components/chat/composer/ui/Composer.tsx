@@ -60,7 +60,11 @@ export function Composer() {
     [mode, capabilities],
   );
 
-  const { placeholder } = useMemo(() => getModeCopy(mode), [mode]);
+  // Change line 63 to this:
+  const { placeholder = "Type a message..." } = useMemo(
+    () => getModeCopy(mode) ?? { placeholder: "Type a message..." },
+    [mode],
+  );
 
   // 🛑 GATE: Identify if the current active case is a local UI-only draft
   const isDraft = caseId?.startsWith("draft_");
@@ -104,7 +108,7 @@ export function Composer() {
       id: tempId,
       kind: "text",
       role: "user",
-      mode,
+      mode: mode as any,
       text: trimmed,
       createdAt: new Date().toISOString(),
     };

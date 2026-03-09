@@ -1,37 +1,52 @@
 // src/app/xotic/postwins/_components/chat/MessagesSurface.tsx
-// Purpose: Unified feed container delegating to ChatBubble, TimelineBubble, QuestionnaireBubble,
-// and CaseBootstrapBubble for case initialization events.
+// Purpose: Unified chat feed renderer that merges ChatMessage UI messages, case timeline events,
+// questionnaire injection, and lifecycle bubbles into a single chronological stream.
 
-/* =============================================================================
+/* ============================================================================
 Assumptions
-------------------------------------------------------------------------------
-• ThreadMessage.metadata may contain { systemEvent: "CASE_BOOTSTRAP", referenceCode }
-• Backend inserts a message:
-      type: "SYSTEM_EVENT"
-      metadata.systemEvent: "CASE_BOOTSTRAP"
-• CaseBootstrapBubble exists at ./bubbles/CaseBootstrapBubble
-=============================================================================*/
+----------------------------------------------------------------------------
+• Store pipeline already normalizes backend messages → ChatMessage
+      BackendMessage
+          ↓
+      mapBackendMessageToChatMessage()
+          ↓
+      ChatMessage
 
-/* =============================================================================
-Design reasoning       pnpm turbo run --filter=@posta/backend build 
-------------------------------------------------------------------------------
-MessagesSurface acts as the orchestration layer of the chat feed. It merges
-conversation messages, governance timeline events, and intake UI components
-into a unified render stream.
+• getUnifiedFeed() from the store returns:
+      { kind: "chat", data: ChatMessage }
+      { kind: "timeline", data: CaseTimelineEvent }
 
-Rather than overloading ChatBubble with lifecycle awareness, CASE_BOOTSTRAP
-events are intercepted here and routed to CaseBootstrapBubble. This keeps
-ChatBubble focused purely on conversational rendering while system lifecycle
-events remain visually distinct.
+• ChatBubble expects ChatMessage.
+• TimelineBubble expects CaseTimelineEvent.
+• QuestionnaireBubble is UI-only injection when draft recording.
+• CaseBootstrapBubble handles lifecycle initialization events.
+============================================================================ */
 
-QuestionnaireBubble remains a temporary UI injector controlled by composerMode.
-=============================================================================*/
+/* ============================================================================
+Design reasoning
+----------------------------------------------------------------------------
+MessagesSurface is the orchestration layer of the conversation UI.
+
+Responsibilities:
+1. Merge store-provided feed (chat + timeline)
+2. Inject UI-only items (date dividers + questionnaire)
+3. Maintain scroll intelligence (pagination + auto-scroll)
+4. Delegate rendering to specialized bubble components
+
+The component intentionally does not interpret backend domain types.
+All UI messages arrive already normalized as ChatMessage via the mapper layer.
+
+Lifecycle system events (ex: CASE_BOOTSTRAP) are intercepted here so that
+ChatBubble remains purely conversational and unaware of system lifecycle logic.
+============================================================================ */
+
 "use client";
 
-import React, { useMemo, useCallback, useRef, useState } from "react";
+import React, { useMemo, useCallback, useState } from "react";
 import { Activity, ArrowDown } from "lucide-react";
+
 import { usePostWinStore } from "../../store/usePostWinStore";
-import type { ThreadMessage } from "../../store/types";
+import type { ChatMessage } from "../../store/types";
 import type { CaseTimelineEvent } from "../../store/slices/caseTimeline.slice";
 
 import { ChatBubble } from "./ChatBubble";
@@ -40,25 +55,24 @@ import { QuestionnaireBubble } from "../../questionaire/QuestionnaireBubble";
 import { CaseBootstrapBubble } from "./CaseBootstrapBubble";
 import { ViewToggle } from "./ViewToggle";
 
-// 🚀 NAVIGATION & HOOKS
 import { handleNavigation } from "@/utils/navigation";
 import { useInfiniteScroll } from "../../hooks/useInfiniteScroll";
 import { usePrependScrollRestore } from "../../hooks/usePrependScrollRestore";
 import { useSmartAutoScroll } from "../../hooks/useSmartAutoScroll";
 
-/* =========================================================
+/* ============================================================================
 Feed Types
-========================================================= */
+============================================================================ */
 
 type UnifiedFeedItem =
-  | { kind: "chat"; timestamp: string; data: ThreadMessage }
+  | { kind: "chat"; timestamp: string; data: ChatMessage }
   | { kind: "timeline"; timestamp: string; data: CaseTimelineEvent }
   | { kind: "questionnaire"; timestamp: string }
-  | { kind: "date_divider"; timestamp: string; dateLabel: string }; // 📅 New Type
+  | { kind: "date_divider"; timestamp: string; dateLabel: string };
 
-/* =========================================================
+/* ============================================================================
 Component
-========================================================= */
+============================================================================ */
 
 export function MessagesSurface() {
   const getUnifiedFeed = usePostWinStore((s) => s.getUnifiedFeed);
@@ -71,7 +85,7 @@ export function MessagesSurface() {
   const hasMore = usePostWinStore((s) => s.hasMore);
   const isFetchingMore = usePostWinStore((s) => s.isFetchingMore);
 
-  /* ================= 1. Scroll & Pagination Intelligence ================= */
+  /* ================= Scroll management ================= */
 
   const { containerRef, captureHeight, restoreScroll } =
     usePrependScrollRestore() as {
@@ -82,7 +96,9 @@ export function MessagesSurface() {
 
   const [showScrollAnchor, setShowScrollAnchor] = useState(false);
 
-  /* ================= 2. Feed Processing (Unified + Dates) ================= */
+  /* =========================================================================
+     Feed Processing
+  ========================================================================= */
 
   const feedWithDates = useMemo(() => {
     const raw = getUnifiedFeed();
@@ -93,23 +109,27 @@ export function MessagesSurface() {
 
     raw.forEach((item) => {
       const date = new Date(item.timestamp);
+
       const dateLabel = date.toLocaleDateString(undefined, {
         weekday: "long",
         month: "long",
         day: "numeric",
       });
 
-      // Inject Date Divider if day changed
       if (dateLabel !== lastDateLabel) {
         processed.push({
           kind: "date_divider",
           timestamp: item.timestamp,
-          dateLabel: dateLabel,
+          dateLabel,
         });
+
         lastDateLabel = dateLabel;
       }
+
       processed.push(item as UnifiedFeedItem);
     });
+
+    /* Inject questionnaire when recording draft */
 
     if (composerMode === "record" && isDraft) {
       processed.push({
@@ -121,16 +141,25 @@ export function MessagesSurface() {
     return processed;
   }, [getUnifiedFeed, composerMode, caseId]);
 
+  /* =========================================================================
+     Smart auto scroll    
+  ========================================================================= */
+
   useSmartAutoScroll({
     containerRef,
     dependency: feedWithDates.length,
     threshold: 120,
   });
 
+  /* =========================================================================
+     Infinite scroll pagination
+  ========================================================================= */
+
   const { sentinelRef } = useInfiniteScroll({
     enabled: hasMore && !isFetchingMore && !caseId?.startsWith("draft_"),
     onLoadMore: async () => {
       if (!caseId) return;
+
       captureHeight();
       await fetchMoreMessages(caseId);
       restoreScroll();
@@ -138,12 +167,17 @@ export function MessagesSurface() {
     root: containerRef.current,
   });
 
-  /* ================= Smart Navigation Switcher ================= */
+  /* =========================================================================
+     Smart navigation jump
+  ========================================================================= */
+
   const onJumpToMessage = useCallback(
     (targetId: string) => {
       const element = document.getElementById(targetId);
+
       if (!element) {
         setActiveView("all");
+
         setTimeout(() => {
           handleNavigation({
             target: "MESSAGE",
@@ -151,8 +185,10 @@ export function MessagesSurface() {
             params: { highlight: true, focus: true, mode: "peek" },
           });
         }, 60);
+
         return;
       }
+
       handleNavigation({
         target: "MESSAGE",
         id: targetId,
@@ -164,11 +200,21 @@ export function MessagesSurface() {
 
   const isDraftMode = caseId?.startsWith("draft_");
 
+  /* =========================================================================
+     Scroll anchor logic
+  ========================================================================= */
+
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
+
     const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
+
     setShowScrollAnchor(!isNearBottom);
   };
+
+  /* =========================================================================
+     Render
+  ========================================================================= */
 
   return (
     <div className="h-full w-full rounded-[var(--xotic-radius)] border border-line/50 bg-paper overflow-hidden flex flex-col relative group">
@@ -192,7 +238,8 @@ export function MessagesSurface() {
             ) : (
               feedWithDates.map((item, i) => (
                 <div key={i} className="relative z-10">
-                  {/* 📅 Date Divider Rendering */}
+                  {/* ================= Date Divider ================= */}
+
                   {item.kind === "date_divider" && (
                     <div className="sticky top-0 z-20 py-4 flex justify-center">
                       <span className="px-4 py-1 bg-surface-strong/80 backdrop-blur-sm border border-line/40 rounded-full text-[10px] font-bold uppercase tracking-widest text-ink/60 shadow-sm">
@@ -201,28 +248,33 @@ export function MessagesSurface() {
                     </div>
                   )}
 
+                  {/* ================= Chat Messages ================= */}
+
                   {item.kind === "chat" &&
                     (() => {
-                      const meta = item.data.metadata as any;
-                      if (
-                        item.data.type === "SYSTEM_EVENT" &&
-                        meta?.systemEvent === "CASE_BOOTSTRAP"
-                      ) {
+                      const meta = (item.data as any)?.metadata;
+
+                      if (meta?.systemEvent === "CASE_BOOTSTRAP") {
                         return <CaseBootstrapBubble message={item.data} />;
                       }
+
                       return (
                         <ChatBubble
                           message={item.data}
-                          isOwn={item.data.authorId === currentUserId}
+                          isOwn={(item.data as any)?.authorId === currentUserId}
                         />
                       );
                     })()}
+
+                  {/* ================= Timeline ================= */}
 
                   {item.kind === "timeline" && (
                     <div className="flex justify-center my-4">
                       <TimelineBubble event={item.data} />
                     </div>
                   )}
+
+                  {/* ================= Questionnaire ================= */}
 
                   {item.kind === "questionnaire" && (
                     <div className="flex justify-center">
@@ -235,6 +287,8 @@ export function MessagesSurface() {
           </div>
         </div>
       </div>
+
+      {/* ================= Scroll Anchor ================= */}
 
       {showScrollAnchor && !isDraftMode && (
         <button
@@ -258,6 +312,10 @@ export function MessagesSurface() {
   );
 }
 
+/* ============================================================================
+Empty State
+============================================================================ */
+
 function EmptyState() {
   return (
     <div className="flex justify-center py-10">
@@ -269,43 +327,50 @@ function EmptyState() {
   );
 }
 
-/* =============================================================================
+/* ============================================================================
 Structure
-------------------------------------------------------------------------------
+----------------------------------------------------------------------------
 MessagesSurface
-  • Retrieves unified feed from store
-  • Injects QuestionnaireBubble during intake mode
-  • Routes feed items:
-        SYSTEM_EVENT → CaseBootstrapBubble
-        chat message → ChatBubble
-        timeline event → TimelineBubble
-=============================================================================*/
+ • Retrieves unified feed from Zustand store
+ • Injects UI-only feed items (dates, questionnaire)
+ • Handles pagination, scroll behavior
+ • Delegates rendering to ChatBubble / TimelineBubble
+============================================================================ */
 
-/* =============================================================================
+/* ============================================================================
 Implementation guidance
-------------------------------------------------------------------------------
-Backend must insert a bootstrap message with:
+----------------------------------------------------------------------------
+The store must normalize all backend messages to ChatMessage.
 
-type: "SYSTEM_EVENT"
+Rendering pipeline:
 
-metadata: {
-  systemEvent: "CASE_BOOTSTRAP",
-  referenceCode: string
-}
+BackendMessage
+      ↓
+mapBackendMessageToChatMessage()
+      ↓
+ChatMessage
+      ↓
+store.messages
+      ↓
+getUnifiedFeed()
+      ↓
+MessagesSurface
+      ↓
+ChatBubble / TimelineBubble / QuestionnaireBubble
+============================================================================ */
 
-Once present in the message feed, this component automatically renders the
-CaseBootstrapBubble.
-=============================================================================*/
-
-/* =============================================================================
+/* ============================================================================
 Scalability insight
-------------------------------------------------------------------------------
-Future lifecycle events can be handled here using the same pattern:
+----------------------------------------------------------------------------
+Future system lifecycle messages can be introduced without modifying
+ChatBubble by intercepting them here.
+
+Examples:
 
 CASE_ROUTED
 VERIFICATION_STARTED
 EXECUTION_STARTED
 CASE_CLOSED
 
-Each event maps to its own UI bubble without modifying ChatBubble.
-=============================================================================*/
+Each lifecycle event can map to its own UI bubble component.
+============================================================================ */
