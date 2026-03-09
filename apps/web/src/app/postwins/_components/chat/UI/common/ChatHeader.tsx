@@ -1,10 +1,14 @@
-// app/components/chat/ChatHeader.tsx — Chat thread header with title, metadata, status, and quick actions.
-
 "use client";
 
 import { Activity, ChevronRight, Info, MoreHorizontal } from "lucide-react";
+import { usePostWinStore } from "../../store/usePostWinStore";
+import { ProgressLoader } from "./ProgressLoader";
+import { cn } from "../../../../../../utils/utils";
 
 export function ChatHeader() {
+  const caseId = usePostWinStore((s) => s.activeCaseId);
+  const isDraft = caseId?.startsWith("draft_");
+
   return (
     <header
       aria-label="Chat header"
@@ -14,14 +18,17 @@ export function ChatHeader() {
         bg-paper
         px-[var(--xotic-pad-6)]
         flex items-center justify-between
-        z-40
+        z-40 relative
       "
     >
+      {/* 🚀 THE TELEPORTED LOADER: Injected but decoupled */}
+      <ProgressLoader />
+
       {/* Left: Title + Metadata */}
       <div className="min-w-0 flex items-center gap-4">
         <div className="flex flex-col min-w-0">
           <h1 className="truncate text-sm font-bold tracking-tight text-ink">
-            Project Activity
+            {isDraft ? "New Project Intake" : "Project Activity"}
           </h1>
 
           {/* Metadata */}
@@ -40,29 +47,45 @@ export function ChatHeader() {
           </div>
         </div>
 
-        {/* Status Pill */}
+        {/* Status Pill: Shifts theme if drafting */}
         <div
-          className="
-            inline-flex items-center gap-2
-            h-6 px-2.5 rounded-pill
-            border border-line/50
-            bg-surface-strong
-            text-ink/75
-          "
-          aria-label="Status: Active"
+          className={cn(
+            "inline-flex items-center gap-2 h-6 px-2.5 rounded-pill border transition-colors",
+            isDraft
+              ? "bg-amber-50 border-amber-200 text-amber-600"
+              : "bg-surface-strong border-line/50 text-ink/75",
+          )}
+          aria-label={isDraft ? "Status: Drafting" : "Status: Active"}
         >
           <span className="relative flex h-2 w-2" aria-hidden="true">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--state-success)] opacity-25" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--state-success)]" />
+            <span
+              className={cn(
+                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-25",
+                isDraft ? "bg-amber-500" : "bg-[var(--state-success)]",
+              )}
+            />
+            <span
+              className={cn(
+                "relative inline-flex rounded-full h-2 w-2",
+                isDraft ? "bg-amber-500" : "bg-[var(--state-success)]",
+              )}
+            />
           </span>
 
-          <Activity
-            className="h-3.5 w-3.5 text-[var(--state-success)]"
-            aria-hidden="true"
-          />
+          {!isDraft && (
+            <Activity
+              className="h-3.5 w-3.5 text-[var(--state-success)]"
+              aria-hidden="true"
+            />
+          )}
 
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--state-success)]">
-            Active
+          <span
+            className={cn(
+              "text-[10px] font-bold uppercase tracking-wider",
+              isDraft ? "text-amber-600" : "text-[var(--state-success)]",
+            )}
+          >
+            {isDraft ? "Drafting" : "Active"}
           </span>
         </div>
       </div>

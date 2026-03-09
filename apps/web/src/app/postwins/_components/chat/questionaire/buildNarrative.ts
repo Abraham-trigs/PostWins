@@ -24,7 +24,7 @@ export function buildNarrative(draft: CaseDraftAnswers): string {
             // Fallback if parsing fails
           }
         }
-        parts.push(`The case concerns beneficiary ${displayName}.`);
+        parts.push(`This Postwin case concerns beneficiary ${displayName}.`);
         break;
       }
 
@@ -37,7 +37,7 @@ export function buildNarrative(draft: CaseDraftAnswers): string {
         break;
 
       case "reason":
-        parts.push(`Support is required because: ${value.trim()}.`);
+        parts.push(`Support is required: ${value.trim()}.`);
         break;
 
       case "category":

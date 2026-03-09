@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { LeftRail } from "../navigation/LeftRail";
 import { ChatHeader } from "../chat/UI/common/ChatHeader";
@@ -47,9 +47,31 @@ export function DesktopShell() {
   const setTimeline = usePostWinStore((s) => s.setTimeline);
   const setTimelineLoading = usePostWinStore((s) => s.setTimelineLoading);
   const attachIds = usePostWinStore((s) => s.attachIds);
+  const setActiveCaseId = usePostWinStore((s) => s.setActiveCaseId); // 🚀 Added
+  const setComposerMode = usePostWinStore((s) => s.setComposerMode); // 🚀 Added
 
   const initializeList = usePostWinListStore((s) => s.initialize);
   const selectList = usePostWinListStore((s) => s.select);
+
+  /* ================= Centralized Selection Logic ================= */
+  const handleSelection = useCallback(
+    (id: string | null) => {
+      setActiveId(id);
+      setActiveCaseId(id); // Sync Zustand store immediately
+
+      if (!id) {
+        setComposerMode("record");
+        return;
+      }
+
+      const isDraft = id.startsWith("draft_");
+      selectList(id);
+
+      // 🧠 ALIGNMENT: Force 'record' for new intakes, otherwise default to stable state
+      setComposerMode(isDraft ? "record" : "record");
+    },
+    [selectList, setActiveCaseId, setComposerMode],
+  );
 
   /* ================= Initialize List ================= */
   useEffect(() => {
@@ -59,7 +81,6 @@ export function DesktopShell() {
 
   /* ================= WebSocket Lifecycle (Gated) ================= */
   useEffect(() => {
-    // GATE: Do not connect if no ID or if it's a UI-only draft
     const isDraft = activeId?.startsWith("draft_");
 
     if (
@@ -90,11 +111,8 @@ export function DesktopShell() {
 
     const loadData = async () => {
       const isDraft = activeId.startsWith("draft_");
-
-      // Sync store state with selection
       attachIds({ projectId: activeId, postWinId: null });
 
-      // GATE: Skip API calls for local drafts
       if (isDraft) {
         setTimeline([]);
         setTimelineLoading(false);
@@ -140,11 +158,11 @@ export function DesktopShell() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (detailsFullOpen) setDetailsFullOpen(false);
-      else setActiveId(null);
+      else handleSelection(null); // Use selection logic for ESC
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailsFullOpen]);
+  }, [detailsFullOpen, handleSelection]);
 
   if (!isHydrated) return null;
 
@@ -158,8 +176,7 @@ export function DesktopShell() {
             activeId={activeId}
             onSelect={(id) => {
               const nextId = activeId === id ? null : id;
-              setActiveId(nextId);
-              if (nextId) selectList(nextId);
+              handleSelection(nextId);
             }}
           />
         </div>
@@ -173,8 +190,7 @@ export function DesktopShell() {
                   variant="desktop"
                   onPrimaryAction={() => {
                     const draftId = `draft_${crypto.randomUUID()}`;
-                    setActiveId(draftId);
-                    usePostWinStore.getState().setComposerMode("record");
+                    handleSelection(draftId);
                   }}
                 />
               </div>

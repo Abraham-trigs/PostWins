@@ -45,15 +45,20 @@ export function ChatEmptyState({
    * 2. Otherwise trigger built-in intake flow
    */
   function handleStartCase() {
+    // 1. If DesktopShell provided a handler, use it (it already creates the draftId)
     if (onPrimaryAction) {
       onPrimaryAction();
       return;
     }
 
-    // Switch chat composer into "record" mode
+    // 2. Fallback: If used alone, we must generate the Draft ID manually
+    // so the Composer and Surface know to show the Questionnaire.
+    const draftId = `draft_${crypto.randomUUID()}`;
+
+    // Set the Store state so the Smart Librarian knows where we are
+    usePostWinStore.getState().setActiveCaseId(draftId);
     setComposerMode("record");
 
-    // Insert system starter message into thread
     appendMessage({
       id: crypto.randomUUID(),
       kind: "text",

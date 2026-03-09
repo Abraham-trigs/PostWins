@@ -15,6 +15,7 @@ import {
 
 import type { ThreadMessage } from "@postwin-store/types";
 import { handleNavigation } from "@/utils/navigation";
+import { cn } from "@/utils/utils";
 
 /* =========================================================
    Design reasoning

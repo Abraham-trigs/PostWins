@@ -8,7 +8,7 @@ import {
   type PostWinListItem,
   type PaginationMeta,
   type ListPostWinsParams,
-} from "@/lib/domain/postwin.types";
+} from "@/lib/api/contracts/domain/postwin.types";
 
 ////////////////////////////////////////////////////////////////
 // Response Types

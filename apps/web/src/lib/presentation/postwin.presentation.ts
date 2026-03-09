@@ -1,4 +1,4 @@
-import type { PostWinLifecycle } from "@/lib/domain/postwin.types";
+import type { PostWinLifecycle } from "@/lib/api/contracts/domain/postwin.types";
 
 export type LifecyclePresentation = {
   label: string;

@@ -1,0 +1,212 @@
+# PostWins Website 🌍
+
+The **PostWins website** is a Next.js application that serves as the
+public-facing platform for the PostWins ecosystem.\
+It communicates the mission, architecture, and capabilities of the
+PostWins platform while enabling stakeholders to explore the product,
+request demos, and understand the system's impact.
+
+The website is designed to:
+
+- communicate the vision and architecture of PostWins
+- explain platform capabilities and workflows
+- present impact narratives and stakeholder perspectives
+- collect demo requests
+- provide architectural transparency
+- support product education and onboarding
+
+Unlike the application client (`apps/web`), this project focuses on
+**product storytelling, documentation, and stakeholder engagement**.
+
+---
+
+# Architecture 🏗️
+
+The website is built using **Next.js App Router** with a
+component‑driven architecture focused on clarity, narrative flow, and
+modular content sections.
+
+### Core Priorities
+
+**Product Communication**\
+Explain complex system architecture in accessible ways.
+
+**Narrative‑Driven UX**\
+Pages are structured as storytelling sequences rather than application
+workflows.
+
+**Performance**\
+Optimized for fast loading, SEO visibility, and global accessibility.
+
+**Component Reuse**\
+UI components are designed to be reusable across sections of the site.
+
+---
+
+# Website Structure 🧩
+
+    apps/website
+    ├── public/                # Static assets (logos, icons, images)
+    │
+    ├── src/
+    │   ├── app/               # Next.js App Router pages
+    │   ├── _components/       # Shared website components
+    │   ├── _lib/              # Analytics and site utilities
+    │   ├── _store/            # Lightweight client state
+    │   └── features/          # Experimental or feature modules
+
+---
+
+# Primary Website Sections 🌐
+
+The website is organized around several narrative sections.
+
+Section Purpose
+
+---
+
+Home Introduces the PostWins platform
+Architecture Explains system design and technical foundations
+Experience Demonstrates product workflows
+Impact Communicates platform outcomes
+Security Describes system security and integrity
+About Explains mission and organization
+Request Demo Allows organizations to request access
+
+These routes are implemented within:
+
+    src/app
+
+---
+
+# Component Architecture 🎨
+
+Reusable UI components live inside:
+
+    src/_components
+
+Examples include:
+
+    Header.tsx
+    CTAGroup.tsx
+    ImpactSection.tsx
+    ProblemSection.tsx
+    ModalShell.tsx
+    ExperienceRouter.tsx
+
+These components structure the website's narrative flow and layout.
+
+---
+
+# Content & Narrative Modules 📚
+
+Narrative content and helper utilities exist inside:
+
+    src/_lib
+
+Examples:
+
+    analytics.client.ts
+    analytics.server.ts
+    experience.types.ts
+    stakeholder-content.ts
+
+These modules support:
+
+- analytics tracking
+- stakeholder narratives
+- content structuring
+- experience routing
+
+---
+
+# State Management 🧠
+
+The website uses lightweight client state for UI interaction patterns.
+
+Example:
+
+    src/_store/useExperienceStore.ts
+
+This store manages:
+
+- experience navigation
+- modal flows
+- interaction state
+
+The website intentionally avoids heavy state management to maintain
+performance and simplicity.
+
+---
+
+# Feature Modules ⚙️
+
+Experimental features and modular behaviors are placed inside:
+
+    src/features
+
+Example:
+
+    features/ab-testing
+
+This allows the team to test different content or interaction patterns
+without disrupting core pages.
+
+---
+
+# Running the Website 🚀
+
+From the monorepo root:
+
+Install dependencies
+
+    pnpm install
+
+Run only the website
+
+    pnpm --filter website dev
+
+Run the entire platform
+
+    pnpm dev
+
+The website will run at:
+
+    http://localhost:3000
+
+or the configured port if running alongside other applications.
+
+---
+
+# Development Principles 🧠
+
+The website follows several engineering principles.
+
+**Clarity over complexity**\
+Content should communicate platform ideas simply.
+
+**Narrative UX**\
+Pages should guide users through ideas rather than overwhelm them.
+
+**Composable sections**\
+Website sections should be reusable across pages.
+
+**Performance and SEO**\
+Pages should load quickly and remain discoverable.
+
+---
+
+# Quick System Orientation
+
+To understand the website quickly, review these files:
+
+    src/_components/Header.tsx
+    src/_components/ExperienceRouter.tsx
+    src/app/architecture/page.tsx
+
+Together these reveal:
+
+    site layout
+    + narrative routing
+    + platform explanation
+    = PostWins website architecture

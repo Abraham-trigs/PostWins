@@ -11,7 +11,7 @@ import type {
   PostWinListItem,
   PostWinLifecycle,
   PaginationMeta,
-} from "@/lib/domain/postwin.types";
+} from "@/lib/api/contracts/domain/postwin.types";
 
 ////////////////////////////////////////////////////////////////
 // Types

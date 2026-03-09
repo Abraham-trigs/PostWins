@@ -1,8 +1,8 @@
-// apps/web/src/app/auth/layout.tsx
+//apps/src/web/auth/Layout.tsx
 
 export const metadata = {
   title: "PostWins",
-  description: "Login & keep the Record clean",
+  description: "Login & Kep the Record clean",
 };
 
 export default function AuthLayout({
